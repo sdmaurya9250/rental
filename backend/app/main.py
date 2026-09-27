@@ -30,8 +30,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from workers import asgi, WorkerEntrypoint
 
-from app.routes.auth import router as auth_router
-from app.routes.health import router as health_router
+# Changed imports (removed "app.")
+from routes.auth import router as auth_router
+from routes.health import router as health_router
 
 app = FastAPI(title="RentPeople API", version="1.0.0")
 
