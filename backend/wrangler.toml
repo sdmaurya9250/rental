@@ -3,5 +3,7 @@ main = "app/main.py"
 compatibility_date = "2026-09-21"
 compatibility_flags = ["python_workers"]
 
-[vars]
-PYTHONPATH = "."
+[[d1_databases]]
+binding = "DB"
+database_name = "rentpeople-db"
+database_id = "a095aa1f-ccd9-46a1-ae7d-5bfa2f6841dc"
