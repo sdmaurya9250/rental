@@ -1,0 +1,4 @@
+name = "rental-backend"
+main = "app/main.py"
+compatibility_date = "2026-09-21"
+compatibility_flags = ["python_workers"]
