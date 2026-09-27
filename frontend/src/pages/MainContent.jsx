@@ -83,6 +83,7 @@ const PEOPLE_DATA = [
     tags: ['Networking', 'Travel'],
     image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=600&auto=format&fit=crop',
   },
+  
 ];
 
 export default function MainContent() {
