@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Literal
+from typing import Literal, List, Optional
 
 
 class RegisterRequest(BaseModel):
@@ -27,3 +27,25 @@ class UserResponse(BaseModel):
     gender: str
     want_to: str
     message: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: dict
+
+
+class ProfileUpdate(BaseModel):
+    fullName: Optional[str] = None
+    phone: Optional[str] = None
+    city: Optional[str] = None
+    gender: Optional[str] = None
+    price: Optional[int] = None
+    bio: Optional[str] = None
+    image: Optional[str] = None
+    isAvailable: Optional[bool] = None
+    availableTime: Optional[str] = None
+    languages: Optional[str] = None
+    interests: Optional[str] = None
+    services: Optional[List[str]] = None
+    gallery: Optional[List[str]] = None
