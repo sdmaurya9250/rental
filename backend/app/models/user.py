@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 from typing import Literal
 
 
@@ -9,12 +9,12 @@ class RegisterRequest(BaseModel):
     gender: Literal["Male", "Female", "Other"]
     want_to: Literal["Find a RentPeople", "Become a RentPeople", "Both"]
     mobile: str = Field(..., min_length=10, max_length=10)
-    email: EmailStr
+    email: str
     password: str = Field(..., min_length=6)
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 
