@@ -1,0 +1,10 @@
+import { useLocation, useNavigate } from 'react-router-dom';
+import FeaturePage from '../components/FeaturePage';
+import PersonRow from '../components/PersonRow';
+import { findPerson, formatPrice } from '../data/people';
+
+export default function BookingSummaryPage() {
+  const navigate = useNavigate(); const booking = useLocation().state ?? { personId: 'kiara', service: 'Travel buddy', date: new Date().toISOString().slice(0, 10), startTime: '12:00', endTime: '14:00', hours: 2 };
+  const person = findPerson(booking.personId); const subtotal = person.rate * booking.hours; const fee = Math.round(subtotal * 0.1);
+  return <FeaturePage title="Booking summary" subtitle="Review your booking before payment."><div className="grid max-w-4xl gap-6 md:grid-cols-2"><div className="rounded-2xl border border-[#e7e1f2] bg-white p-5"><PersonRow person={person} /><div className="mt-5 space-y-3 text-sm text-[#5d586e]"><p>Service <span className="float-right font-medium text-[#24202e]">{booking.service}</span></p><p>Date <span className="float-right font-medium text-[#24202e]">{booking.date}</span></p><p>From <span className="float-right font-medium text-[#24202e]">{booking.startTime}</span></p><p>To <span className="float-right font-medium text-[#24202e]">{booking.endTime}</span></p><p>Duration <span className="float-right font-medium text-[#24202e]">{booking.hours} hours</span></p></div></div><div className="rounded-2xl border border-[#e7e1f2] bg-white p-5"><h2 className="font-bold">Payment details</h2><div className="mt-5 space-y-3 text-sm text-[#5d586e]"><p>Subtotal <span className="float-right">{formatPrice(subtotal)}</span></p><p>Platform fee <span className="float-right">{formatPrice(fee)}</span></p><p className="border-t border-[#eeeaf5] pt-3 text-base font-bold text-[#24202e]">Total <span className="float-right">{formatPrice(subtotal + fee)}</span></p></div><button onClick={() => navigate('/bookings')} className="mt-6 w-full rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 py-3 text-sm font-semibold text-white">Proceed to payment</button></div></div></FeaturePage>;
+}
