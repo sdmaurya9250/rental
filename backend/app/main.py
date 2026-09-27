@@ -30,7 +30,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from workers import asgi, WorkerEntrypoint
 
-# Changed imports (removed "app.")
 from routes.auth import router as auth_router
 from routes.health import router as health_router
 
@@ -50,4 +49,5 @@ app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
+        # Make env available to FastAPI
         return await asgi.fetch(app, request, self.env)
