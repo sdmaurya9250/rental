@@ -7,3 +7,7 @@ compatibility_flags = ["python_workers"]
 binding = "DB"
 database_name = "rentpeople-db"
 database_id = "a095aa1f-ccd9-46a1-ae7d-5bfa2f6841dc"
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "rentpeople-images"
