@@ -1,5 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { X, RefreshCw, Phone, Globe, Mail, Lock, Eye, EyeOff, MapPin, Hash, Search, UserPlus, Users } from 'lucide-react';
+import { X, Phone, Globe, Mail, Lock, Eye, EyeOff, MapPin, Hash, Search, UserPlus, Users, Loader2 } from 'lucide-react';
+import {
+  sendLoginOtp,
+  verifyLoginOtp,
+  loginWithPassword,
+  registerUser,
+} from '../pages/Authapi';
+
+// --- Maps between what the UI shows and what the backend's Literal types expect ---
+const GENDER_OPTIONS = [
+  { value: 'Male', label: 'Male' },
+  { value: 'Female', label: 'Female' },
+  { value: 'Other', label: 'Other' },
+];
+
+const INTENT_OPTIONS = [
+  { value: 'Find a RentPeople', label: 'Find a RentPeople', icon: Search },
+  { value: 'Become a RentPeople', label: 'Become a RentPeople', icon: UserPlus },
+  { value: 'Both', label: 'Both', icon: Users },
+];
 
 export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'login' }) {
   // Mode: 'login' | 'register'
@@ -11,24 +30,152 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
   const [phone, setPhone] = useState('');
   const [country, setCountry] = useState('IN India (+91)');
   const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState(''); // password-login email/mobile field
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [city, setCity] = useState('');
   const [pincode, setPincode] = useState('');
-  const [gender, setGender] = useState('');
-  const [accountIntent, setAccountIntent] = useState('find');
+  const [gender, setGender] = useState(''); // now holds 'Male' | 'Female' | 'Other'
+  const [accountIntent, setAccountIntent] = useState('Find a RentPeople'); // now holds backend literal directly
+
+  // OTP flow state
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+
+  // UX state
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     setMode(initialMode);
+    setError('');
   }, [initialMode]);
 
+  // Reset transient state whenever the tab/type changes so stale errors
+  // and OTP steps don't leak between flows.
+  useEffect(() => {
+    setError('');
+    setOtpSent(false);
+    setOtp('');
+  }, [mode, loginType]);
+
   if (!isOpen) return null;
+
+  async function handleSendOtp() {
+    setError('');
+    if (!/^\d{10}$/.test(phone)) {
+      setError('Enter a valid 10-digit mobile number.');
+      return;
+    }
+    try {
+      setLoading(true);
+      await sendLoginOtp(phone);
+      setOtpSent(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyOtp() {
+    setError('');
+    if (!/^\d{4,6}$/.test(otp)) {
+      setError('Enter the OTP you received.');
+      return;
+    }
+    try {
+      setLoading(true);
+      const data = await verifyLoginOtp(phone, otp);
+      onLogin?.(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePasswordLogin() {
+    setError('');
+    if (!identifier || !password) {
+      setError('Enter your email/mobile and password.');
+      return;
+    }
+    try {
+      setLoading(true);
+      const data = await loginWithPassword(identifier, password);
+      onLogin?.(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRegister() {
+    setError('');
+    if (!city || !pincode || !gender || !phone || !email || !password) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+    if (!/^\d{10}$/.test(phone)) {
+      setError('Enter a valid 10-digit mobile number.');
+      return;
+    }
+    if (!/^\d{6}$/.test(pincode)) {
+      setError('Enter a valid 6-digit pincode.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    try {
+      setLoading(true);
+      // Keys and values here must match RegisterRequest exactly:
+      // country, city, pincode, gender ('Male'|'Female'|'Other'),
+      // want_to ('Find a RentPeople'|'Become a RentPeople'|'Both'),
+      // mobile, email, password
+      const data = await registerUser({
+        country,
+        city,
+        pincode,
+        gender,
+        want_to: accountIntent,
+        mobile: phone,
+        email,
+        password,
+      });
+      onLogin?.(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handlePrimaryAction() {
+    if (mode === 'login') {
+      if (loginType === 'otp') {
+        return otpSent ? handleVerifyOtp() : handleSendOtp();
+      }
+      return handlePasswordLogin();
+    }
+    return handleRegister();
+  }
+
+  function primaryLabel() {
+    if (loading) return '...';
+    if (mode === 'register') return 'Create Account';
+    if (loginType === 'password') return 'Login';
+    return otpSent ? 'Verify OTP' : 'Send OTP';
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
       {/* Modal Box Container */}
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden my-8 transform transition-all">
-        
+
         {/* Header Gradient Strip */}
         <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 p-6 text-white relative">
           <button
@@ -46,16 +193,14 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
 
         {/* Modal Body */}
         <div className="p-6 space-y-5 text-gray-800 max-h-[80vh] overflow-y-auto">
-          
+
           {/* Main Mode Toggle Tabs (Login vs Register) */}
           <div className="bg-gray-100 p-1 rounded-xl flex items-center">
             <button
               type="button"
               onClick={() => setMode('login')}
               className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition duration-200 ${
-                mode === 'login'
-                  ? 'bg-purple-600 text-white shadow-md'
-                  : 'text-gray-600 hover:text-gray-900'
+                mode === 'login' ? 'bg-purple-600 text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               Login
@@ -64,14 +209,19 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
               type="button"
               onClick={() => setMode('register')}
               className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition duration-200 ${
-                mode === 'register'
-                  ? 'bg-purple-600 text-white shadow-md'
-                  : 'text-gray-600 hover:text-gray-900'
+                mode === 'register' ? 'bg-purple-600 text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               Register
             </button>
           </div>
+
+          {/* Shared error banner */}
+          {error && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-medium text-red-600">
+              {error}
+            </div>
+          )}
 
           {/* ================= LOGIN FORM ================= */}
           {mode === 'login' && (
@@ -82,9 +232,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                   type="button"
                   onClick={() => setLoginType('password')}
                   className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${
-                    loginType === 'password'
-                      ? 'bg-white text-purple-700 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-800'
+                    loginType === 'password' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'
                   }`}
                 >
                   Password
@@ -93,9 +241,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                   type="button"
                   onClick={() => setLoginType('otp')}
                   className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${
-                    loginType === 'otp'
-                      ? 'bg-white text-purple-700 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-800'
+                    loginType === 'otp' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'
                   }`}
                 >
                   Login with OTP
@@ -103,19 +249,46 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
               </div>
 
               {loginType === 'otp' ? (
-                /* OTP Login Field */
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-700">Phone Number</label>
-                  <div className="relative">
-                    <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="Enter your mobile number"
-                      className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition"
-                    />
+                <div className="space-y-3">
+                  {/* Phone field — locked once OTP is sent */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-gray-700">Phone Number</label>
+                    <div className="relative">
+                      <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="tel"
+                        value={phone}
+                        disabled={otpSent}
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                        placeholder="Enter your mobile number"
+                        maxLength={10}
+                        className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition disabled:bg-gray-50 disabled:text-gray-500"
+                      />
+                    </div>
                   </div>
+
+                  {otpSent && (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-gray-700">Enter OTP</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                        placeholder="6-digit code"
+                        maxLength={6}
+                        className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm tracking-widest text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-600 transition"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSendOtp}
+                        disabled={loading}
+                        className="text-xs text-purple-600 font-medium hover:underline"
+                      >
+                        Resend OTP
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* Password Login Fields */
@@ -126,6 +299,8 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                       <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
                         placeholder="Enter email or mobile"
                         className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-600 transition"
                       />
@@ -164,10 +339,12 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
               {/* Action Submit Button */}
               <button
                 type="button"
-                onClick={onLogin}
-                className="w-full mt-2 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-semibold rounded-xl text-sm transition duration-200 shadow-md shadow-pink-500/20"
+                onClick={handlePrimaryAction}
+                disabled={loading}
+                className="w-full mt-2 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-semibold rounded-xl text-sm transition duration-200 shadow-md shadow-pink-500/20 disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                {loginType === 'otp' ? 'Send OTP' : 'Login'}
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {primaryLabel()}
               </button>
             </div>
           )}
@@ -203,7 +380,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                   <label className="text-xs font-semibold text-gray-700">Pincode <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <Hash className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <input type="text" inputMode="numeric" maxLength="6" value={pincode} onChange={(event) => setPincode(event.target.value)} placeholder="6-digit" className="w-full rounded-xl border border-gray-300 bg-white py-3 pl-10 pr-4 text-sm text-gray-800 placeholder-gray-400 focus:border-purple-600 focus:outline-none" />
+                    <input type="text" inputMode="numeric" maxLength="6" value={pincode} onChange={(event) => setPincode(event.target.value.replace(/\D/g, ''))} placeholder="6-digit" className="w-full rounded-xl border border-gray-300 bg-white py-3 pl-10 pr-4 text-sm text-gray-800 placeholder-gray-400 focus:border-purple-600 focus:outline-none" />
                   </div>
                 </div>
               </div>
@@ -212,24 +389,31 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                 <label className="text-xs font-semibold text-gray-700">Gender <span className="text-red-500">*</span></label>
                 <select value={gender} onChange={(event) => setGender(event.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-800 focus:border-purple-600 focus:outline-none">
                   <option value="" disabled>Select gender</option>
-                  <option value="woman">Woman</option>
-                  <option value="man">Man</option>
-                  <option value="non-binary">Non-binary</option>
-                  <option value="prefer-not-to-say">Prefer not to say</option>
+                  {GENDER_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
               </div>
 
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-gray-700">I want to <span className="text-red-500">*</span></label>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {[
-                    { value: 'find', label: 'Find a RentPeople', icon: Search },
-                    { value: 'become', label: 'Become a RentPeople', icon: UserPlus },
-                    { value: 'both', label: 'Both', icon: Users },
-                  ].map((option) => {
+                  {INTENT_OPTIONS.map((option) => {
                     const Icon = option.icon;
                     const selected = accountIntent === option.value;
-                    return <button key={option.value} type="button" onClick={() => setAccountIntent(option.value)} className={`flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-semibold transition ${selected ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-300' : 'border-gray-300 bg-white text-gray-700 hover:border-violet-300'}`}><Icon className="h-5 w-5" />{option.label}</button>;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setAccountIntent(option.value)}
+                        className={`flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-semibold transition ${
+                          selected ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-300' : 'border-gray-300 bg-white text-gray-700 hover:border-violet-300'
+                        }`}
+                      >
+                        <Icon className="h-5 w-5" />
+                        {option.label}
+                      </button>
+                    );
                   })}
                 </div>
                 <p className="text-[11px] text-gray-500">All options will create a RentPeople account.</p>
@@ -247,8 +431,9 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                   <input
                     type="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                     placeholder="Enter mobile number"
+                    maxLength={10}
                     className="w-full bg-white px-3.5 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none"
                   />
                 </div>
@@ -299,10 +484,12 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
               {/* Action Submit Button */}
               <button
                 type="button"
-                onClick={onLogin}
-                className="w-full mt-2 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-semibold rounded-xl text-sm transition duration-200 shadow-md shadow-pink-500/20"
+                onClick={handlePrimaryAction}
+                disabled={loading}
+                className="w-full mt-2 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-semibold rounded-xl text-sm transition duration-200 shadow-md shadow-pink-500/20 disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                Create Account
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {primaryLabel()}
               </button>
             </div>
           )}
@@ -310,13 +497,9 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
           {/* Footer Terms Note */}
           <p className="text-center text-[11px] text-gray-500 pt-2">
             By continuing, you agree to our{' '}
-            <a href="#terms" className="text-purple-600 hover:underline">
-              Terms
-            </a>{' '}
+            <a href="#terms" className="text-purple-600 hover:underline">Terms</a>{' '}
             and{' '}
-            <a href="#privacy" className="text-purple-600 hover:underline">
-              Privacy Policy
-            </a>
+            <a href="#privacy" className="text-purple-600 hover:underline">Privacy Policy</a>
           </p>
 
         </div>
