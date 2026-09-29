@@ -35,6 +35,12 @@ class TokenResponse(BaseModel):
     user: dict
 
 
+class ServiceItem(BaseModel):
+    id: Optional[str] = None
+    name: str
+    price: int = 0
+
+
 class ProfileUpdate(BaseModel):
     fullName: Optional[str] = None
     phone: Optional[str] = None
@@ -47,5 +53,5 @@ class ProfileUpdate(BaseModel):
     availableTime: Optional[str] = None
     languages: Optional[str] = None
     interests: Optional[str] = None
-    services: Optional[List[str]] = None
+    services: Optional[List[ServiceItem]] = None   # ← now accepts objects
     gallery: Optional[List[str]] = None
