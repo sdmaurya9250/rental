@@ -65,9 +65,18 @@ class BookingCreate(BaseModel):
     location_type: Literal["in_person", "online"]
     location: Optional[str] = None
     service_id: Optional[str] = None
+    service_name: Optional[str] = None
     rent_person_id: str
     special_requirements: Optional[str] = None
     customer_note: Optional[str] = None
     price: int
     platform_fee: int
     total_amount: int
+
+
+class BookingReject(BaseModel):
+    rejection_message: Optional[str] = None
+
+class MessageCreate(BaseModel):
+    receiver_id: str
+    content: str = Field(..., min_length=1, max_length=2000)
