@@ -8,6 +8,8 @@ from routes.profile import router as profile_router
 from routes.upload import router as upload_router   # ← add this
 from routes.people import router as people_router
 from routes.bookings import router as bookings_router
+from routes.favorites import router as favorites_router
+from routes.messages import router as messages_router
 
 app = FastAPI(title="RentPeople API", version="1.0.0")
 
@@ -25,6 +27,8 @@ app.include_router(profile_router, prefix="/api", tags=["Profile"])
 app.include_router(upload_router, prefix="/api", tags=["Upload"])   # ← add this
 app.include_router(people_router, prefix="/api", tags=["People"])
 app.include_router(bookings_router, prefix="/api", tags=["Bookings"])
+app.include_router(favorites_router, prefix="/api", tags=["Favorites"])
+app.include_router(messages_router, prefix="/api", tags=["Messages"])
 
 
 class Default(WorkerEntrypoint):
