@@ -4,6 +4,7 @@ import { createElement } from 'react';
 import Home from './pages/Home';
 import Browse from './pages/Browse';
 import MainContent from './pages/MainContent';
+import ProfilePage from './pages/ProfilePage';
 
 const router = createBrowserRouter([
   {
@@ -17,6 +18,10 @@ const router = createBrowserRouter([
       { index: true, element: createElement(MainContent) },
       { path: ':category', element: createElement(MainContent) },
     ],
+  },
+  {
+    path: '/people/:personId',
+    element: createElement(ProfilePage),
   },
 ]);
 

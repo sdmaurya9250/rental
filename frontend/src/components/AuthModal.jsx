@@ -5,7 +5,7 @@ import {
   verifyLoginOtp,
   loginWithPassword,
   registerUser,
-} from '../pages/Authapi';
+} from '../auth/auth';
 
 // --- Maps between what the UI shows and what the backend's Literal types expect ---
 const GENDER_OPTIONS = [
@@ -24,7 +24,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
   // Mode: 'login' | 'register'
   const [mode, setMode] = useState(initialMode);
   // Login Type: 'otp' | 'password'
-  const [loginType, setLoginType] = useState('otp');
+  const [loginType, setLoginType] = useState('password');
 
   // Form States
   const [phone, setPhone] = useState('');
@@ -294,14 +294,14 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                 /* Password Login Fields */
                 <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-gray-700">Mobile / Email</label>
+                    <label className="text-xs font-semibold text-gray-700">Email</label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
                         value={identifier}
                         onChange={(e) => setIdentifier(e.target.value)}
-                        placeholder="Enter email or mobile"
+                        placeholder="Enter your registered email"
                         className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-600 transition"
                       />
                     </div>

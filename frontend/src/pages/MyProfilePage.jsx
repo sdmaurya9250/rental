@@ -1,10 +1,8 @@
 import { Camera, ChevronDown, Plus, Save, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import FeaturePage from '../components/FeaturePage';
-
-// ---- Config -----------------------------------------------------------
-// Point this at wherever the server in /server is running.
-const API_BASE = import.meta?.env?.VITE_API_BASE || 'http://localhost:4000';
+import { getMyProfile, getStoredUser, isAuthenticated, updateMyProfile } from '../auth/auth';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -16,26 +14,91 @@ function formatHour(h) {
 const HOURS = Array.from({ length: 24 }, (_, h) => formatHour(h));
 
 const SUGGESTED_LANGUAGES = ['English', 'Hindi', 'Marathi', 'Tamil', 'Telugu', 'Bengali', 'Gujarati', 'Kannada', 'Punjabi', 'Urdu'];
-const SUGGESTED_SERVICES = ['Coffee Partner', 'Café & Food Partner', 'Event Partner', 'Travel Buddy', 'Movie Buddy', 'Shopping Buddy', 'Gym Partner', 'Music Jam'];
 
+const SUGGESTED_SERVICES = [
+  'Coffee Partner',
+  'Café & Food Partner',
+  'Event Partner',
+  'Travel Partner',
+  'Movie Partner',
+  'Shopping Buddy',
+  'Gym Partner',
+  'Music Jam',
+  'In-Person Meeting',
+  'Elder Care',
+  'Hangingout',
+  'Clubbing',
+  'Medical Support',
+  'Domestic Help',
+  'City Tour Partner',
+  'Gaming Partner (Physical)',
+  'Concert Partner',
+  'Professional Networking Partner',
+];
 const MAX_GALLERY_IMAGES = 6;
 
 const defaultProfile = {
   id: '',
-  fullName: 'Surendra Kumar',
-  email: 'surendra@example.com',
-  phone: '+91 98765 43210',
-  city: 'Mumbai',
-  gender: 'Man',
-  bio: 'I enjoy meeting people and creating memorable experiences.',
-  image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop',
+  fullName: '',
+  email: '',
+  phone: '',
+  city: '',
+  gender: 'Other',
+  bio: '',
+  image: '',
   isAvailable: true,
-  languages: ['English', 'Hindi'],
-  availableDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
-  timeSlots: [{ id: 'slot-1', start: '6:00 PM', end: '10:00 PM' }],
-  services: [{ id: 'svc-1', name: 'Coffee Partner', price: 1500 }],
+  languages: [],
+  availableDays: [],
+  timeSlots: [],
+  services: [],
   gallery: [],
 };
+
+function parseList(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {
+    // Older records may store comma-separated values.
+  }
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function mapApiProfile(data, user = {}) {
+  let availability = {};
+  try {
+    availability = data.availableTime ? JSON.parse(data.availableTime) : {};
+  } catch {
+    availability = {};
+  }
+  const services = parseList(data.services).map((service, index) => (
+    typeof service === 'string'
+      ? { id: `service-${index}`, name: service, price: Number(data.price) || 0 }
+      : { id: service.id || `service-${index}`, name: service.name || '', price: Number(service.price) || 0 }
+  ));
+  const gender = String(data.gender || user.gender || 'Other').toLowerCase();
+
+  return {
+    ...defaultProfile,
+    id: data.id || user.id || '',
+    fullName: data.fullName || user.fullName || user.name || '',
+    email: data.email || user.email || '',
+    phone: data.phone || user.mobile || '',
+    city: data.city || user.city || '',
+    gender: gender === 'male' ? 'Male' : gender === 'female' ? 'Female' : 'Other',
+    price: Number(data.price) || 0,
+    bio: data.bio || '',
+    image: data.image || '',
+    isAvailable: data.isAvailable ?? true,
+    languages: parseList(data.languages),
+    availableDays: availability.days || [],
+    timeSlots: (availability.timeSlots || []).map((slot, index) => ({ ...slot, id: slot.id || `slot-${index}` })),
+    services,
+    gallery: parseList(data.gallery),
+  };
+}
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -102,32 +165,34 @@ function Chip({ children, onRemove }) {
 // ---- Main component ------------------------------------------------------
 
 export default function MyProfilePage() {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(defaultProfile);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [languageDraft, setLanguageDraft] = useState('');
   const [serviceDraft, setServiceDraft] = useState({ name: '', price: '' });
 
-  // Load an existing profile from the API (falling back to a local cache).
+  // The profile endpoint identifies the account from the saved bearer token.
   useEffect(() => {
-    let userId = localStorage.getItem('rentpeople-user-id');
-    if (!userId) {
-      userId = uid('user');
-      localStorage.setItem('rentpeople-user-id', userId);
+    if (!isAuthenticated()) {
+      navigate('/login', { replace: true });
+      return;
     }
-    setProfile((p) => ({ ...p, id: userId }));
-
-    fetch(`${API_BASE}/api/profile/${userId}`)
-      .then((res) => (res.ok ? res.json() : null))
+    let active = true;
+    getMyProfile()
       .then((data) => {
-        if (data) setProfile((p) => ({ ...defaultProfile, ...data, id: userId }));
+        if (active) setProfile(mapApiProfile(data || {}, getStoredUser() || {}));
       })
-      .catch(() => {
-        const cached = localStorage.getItem('rentpeople-profile');
-        if (cached) setProfile((p) => ({ ...defaultProfile, ...JSON.parse(cached), id: userId }));
+      .catch((error) => {
+        if (active) setErrorMsg(error.message || 'Unable to load your profile.');
+      })
+      .finally(() => {
+        if (active) setLoadingProfile(false);
       });
-  }, []);
+    return () => { active = false; };
+  }, [navigate]);
 
   const updateField = (event) => setProfile({ ...profile, [event.target.name]: event.target.value });
 
@@ -206,24 +271,25 @@ export default function MyProfilePage() {
     setSaving(true);
     setErrorMsg('');
     try {
-      const res = await fetch(`${API_BASE}/api/profile`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile),
+      await updateMyProfile({
+        fullName: profile.fullName,
+        phone: profile.phone,
+        city: profile.city,
+        gender: profile.gender,
+        price: profile.price,
+        bio: profile.bio,
+        image: profile.image,
+        isAvailable: profile.isAvailable,
+        availableTime: JSON.stringify({ days: profile.availableDays, timeSlots: profile.timeSlots }),
+        languages: JSON.stringify(profile.languages),
+        interests: JSON.stringify(profile.services.map((service) => service.name)),
+        services: profile.services,
+        gallery: profile.gallery,
       });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'Server error while saving');
-      }
-      const savedProfile = await res.json();
-      setProfile((p) => ({ ...p, ...savedProfile }));
-      localStorage.setItem('rentpeople-profile', JSON.stringify(savedProfile));
       setSaved(true);
       window.setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      // Backend unreachable or rejected the request — keep the user's work locally.
-      localStorage.setItem('rentpeople-profile', JSON.stringify(profile));
-      setErrorMsg(err.message === 'Failed to fetch' ? "Couldn't reach the server, so this was saved on this device only." : err.message);
+      setErrorMsg(err.message || 'Unable to save your profile.');
     } finally {
       setSaving(false);
     }
@@ -231,9 +297,10 @@ export default function MyProfilePage() {
 
   return (
     <FeaturePage title="My profile" subtitle="Keep your details, profile image, and pricing up to date.">
+      {loadingProfile ? <p className="text-sm text-[#706a80]">Loading your profile…</p> : errorMsg && !profile.id ? <p role="alert" className="text-sm text-red-600">{errorMsg}</p> : (
       <div className="grid max-w-5xl gap-6 lg:grid-cols-[260px_1fr]">
         <aside className="h-fit rounded-2xl border border-[#e7e1f2] bg-white p-5 text-center shadow-sm">
-          <img src={profile.image} alt="Your profile" className="mx-auto h-36 w-36 rounded-full object-cover ring-4 ring-violet-100" />
+          {profile.image ? <img src={profile.image} alt="Your profile" className="mx-auto h-36 w-36 rounded-full object-cover ring-4 ring-violet-100" /> : <div className="mx-auto grid h-36 w-36 place-items-center rounded-full bg-violet-100 text-3xl font-bold text-violet-500">{profile.fullName?.charAt(0)?.toUpperCase() || '?'}</div>}
           <label className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-violet-200 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50">
             <Camera className="h-4 w-4" />
             Upload image
@@ -271,10 +338,9 @@ export default function MyProfilePage() {
                   onChange={updateField}
                   className="mt-2 w-full rounded-lg border border-[#e4dff0] px-3 py-2.5 text-sm font-normal outline-none focus:ring-2 focus:ring-violet-300"
                 >
-                  <option>Woman</option>
-                  <option>Man</option>
-                  <option>Non-binary</option>
-                  <option>Prefer not to say</option>
+                  <option>Male</option>
+                  <option>Female</option>
+                  <option>Other</option>
                 </select>
               </label>
             </div>
@@ -496,6 +562,7 @@ export default function MyProfilePage() {
           </div>
         </div>
       </div>
+      )}
     </FeaturePage>
   );
 }

@@ -5,8 +5,6 @@ import Browse from './pages/Browse';
 import BookingsList from './pages/BookingsList';
 import Login from './pages/Login';
 import { ConversationPage, DateCompanionPage, EventPartnerPage, FitnessPage, GamingPage, NetworkingPage, OtherPage, PhotoshootPage, TravelBuddyPage } from './pages/CategoryPages';
-import AvailabilityPage from './pages/AvailabilityPage';
-import BookingSummaryPage from './pages/BookingSummaryPage';
 import FavoritesPage from './pages/FavoritesPage';
 import MessagesPage from './pages/MessagesPage';
 import ProfilePage from './pages/ProfilePage';
@@ -23,8 +21,6 @@ function App() {
           <Route path="/bookings" element={<BookingsList />} />
           <Route path="/search" element={<SearchResultsPage />} />
           <Route path="/people/:personId" element={<ProfilePage />} />
-          <Route path="/book/:personId" element={<AvailabilityPage />} />
-          <Route path="/booking-summary" element={<BookingSummaryPage />} />
           <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/my-profile" element={<MyProfilePage />} />

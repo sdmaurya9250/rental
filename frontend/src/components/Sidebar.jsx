@@ -9,12 +9,13 @@ import {
   Briefcase,
   Camera,
   Gamepad2,
-  MoreHorizontal, X
+  MoreHorizontal, X, UserPlus
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
+import { getStoredUser } from '../auth/auth';
 
 export default function Sidebar({ mobileOpen, onNavigate }) {
-  const categories = [
+  const allCategories = [
     { to: '/', label: 'Home', icon: LayoutGrid, end: true },
     { to: '/browse', label: 'Browse people', icon: Users },
     { to: '/search', label: 'Search people', icon: Search },
@@ -32,6 +33,24 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
     { to: '/gaming', label: 'Gaming buddy', icon: Gamepad2 },
     { to: '/other', label: 'Other', icon: MoreHorizontal },
   ];
+  const user = getStoredUser();
+  const role = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
+  const isBecomeRole = role === 'become a rentpeople' || role === 'become';
+  const isFindRole = role === 'find a rentpeople' || role === 'find';
+  const isBothRole = role === 'both';
+  const roleCategories = [
+    { to: '/my-profile', label: 'Become', icon: UserPlus },
+    { to: '/bookings', label: 'My bookings', icon: CalendarDays },
+    { to: '/messages', label: 'Messages', icon: MessageCircle },
+    { to: '/my-profile', label: 'My profile', icon: UserRound },
+  ];
+  const categories = isBecomeRole
+    ? roleCategories
+    : isFindRole
+      ? allCategories.filter((category) => category.label !== 'My profile')
+      : isBothRole
+        ? [...allCategories, roleCategories[0]]
+        : allCategories;
 
   return (
     <aside className={`fixed inset-y-0 left-0 z-50 w-72 overflow-y-auto bg-white border-r border-[#e7e0f5] p-5 shadow-xl transition-transform duration-200 lg:static lg:z-auto lg:w-64 lg:min-w-[256px] lg:translate-x-0 lg:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>

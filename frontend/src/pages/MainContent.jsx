@@ -1,95 +1,32 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Heart, MapPin, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
-
-const PEOPLE_DATA = [
-  {
-    id: 1,
-    name: 'Kiara',
-    age: 24,
-    location: 'Mumbai',
-    price: '₹1,500/hr',
-    isOnline: true,
-    tags: ['Data Companion', 'Travel'],
-    image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop',
-  },
-  {
-    id: 2,
-    name: 'Rohan',
-    age: 26,
-    location: 'Delhi',
-    price: '₹1,200/hr',
-    isOnline: true,
-    tags: ['Travel', 'Event'],
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=600&auto=format&fit=crop',
-  },
-  {
-    id: 3,
-    name: 'Aanya',
-    age: 23,
-    location: 'Bangalore',
-    price: '₹1,000/hr',
-    isOnline: true,
-    tags: ['Conversation', 'Movies'],
-    image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=600&auto=format&fit=crop',
-  },
-  {
-    id: 4,
-    name: 'Arjun',
-    age: 27,
-    location: 'Mumbai',
-    price: '₹1,800/hr',
-    isOnline: true,
-    tags: ['Fitness', 'Networking'],
-    image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=600&auto=format&fit=crop',
-  },
-  {
-    id: 5,
-    name: 'Meera',
-    age: 25,
-    location: 'Pune',
-    price: '₹1,200/hr',
-    isOnline: true,
-    tags: ['Event', 'Travel'],
-    image: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?q=80&w=600&auto=format&fit=crop',
-  },
-  {
-    id: 6,
-    name: 'Kabir',
-    age: 26,
-    location: 'Delhi',
-    price: '₹1,500/hr',
-    isOnline: true,
-    tags: ['Gaming', 'Conversation'],
-    image: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?q=80&w=600&auto=format&fit=crop',
-  },
-  {
-    id: 7,
-    name: 'Isha',
-    age: 24,
-    location: 'Mumbai',
-    price: '₹1,000/hr',
-    isOnline: true,
-    tags: ['Photoshoot', 'Events'],
-    image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=600&auto=format&fit=crop',
-  },
-  {
-    id: 8,
-    name: 'Vikram',
-    age: 29,
-    location: 'Bangalore',
-    price: '₹1,800/hr',
-    isOnline: true,
-    tags: ['Networking', 'Travel'],
-    image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=600&auto=format&fit=crop',
-  },
-  
-];
+import { fetchPeople, formatPersonPrice, getPersonPrice } from './finderApi';
 
 export default function MainContent() {
   const [favorites, setFavorites] = useState({});
-  const [cityFilter, setCityFilter] = useState('Mumbai');
+  const [cityFilter, setCityFilter] = useState('All');
   const [sortBy, setSortBy] = useState('Popular');
+  const [people, setPeople] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    fetchPeople()
+      .then((results) => { if (active) setPeople(results); })
+      .catch((error) => { if (active) setLoadError(error.message || 'Unable to load people.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  const cities = useMemo(() => [...new Set(people.map((person) => person.location).filter(Boolean))].sort(), [people]);
+  const visiblePeople = useMemo(() => {
+    const results = people.filter((person) => cityFilter === 'All' || person.location === cityFilter);
+    if (sortBy === 'PriceLow') results.sort((a, b) => getPersonPrice(a) - getPersonPrice(b));
+    if (sortBy === 'PriceHigh') results.sort((a, b) => getPersonPrice(b) - getPersonPrice(a));
+    return results;
+  }, [people, cityFilter, sortBy]);
 
   const toggleFavorite = (id) => {
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -119,10 +56,8 @@ export default function MainContent() {
                 onChange={(e) => setCityFilter(e.target.value)}
                 className="bg-transparent text-[#40394f] text-xs focus:outline-none appearance-none pr-5 cursor-pointer font-medium"
               >
-                <option value="Mumbai" className="bg-[#16181e]">Mumbai</option>
-                <option value="Delhi" className="bg-[#16181e]">Delhi</option>
-                <option value="Bangalore" className="bg-[#16181e]">Bangalore</option>
-                <option value="Pune" className="bg-[#16181e]">Pune</option>
+                <option value="All">All locations</option>
+                {cities.map((city) => <option key={city} value={city}>{city}</option>)}
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 pointer-events-none" />
             </div>
@@ -140,7 +75,6 @@ export default function MainContent() {
                 <option value="Popular" className="bg-[#16181e]">Popular</option>
                 <option value="PriceLow" className="bg-[#16181e]">Price: Low to High</option>
                 <option value="PriceHigh" className="bg-[#16181e]">Price: High to Low</option>
-                <option value="Rating" className="bg-[#16181e]">Highest Rated</option>
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 pointer-events-none" />
             </div>
@@ -149,8 +83,11 @@ export default function MainContent() {
       </div>
 
       {/* Profile Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-        {PEOPLE_DATA.map((person) => {
+      {loading && <p role="status" className="py-12 text-center text-sm text-[#706a80]">Loading people…</p>}
+      {!loading && loadError && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{loadError}</p>}
+      {!loading && !loadError && visiblePeople.length === 0 && <p className="py-12 text-center text-sm text-[#706a80]">No people found for this location.</p>}
+      {!loading && !loadError && visiblePeople.length > 0 && <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+        {visiblePeople.map((person) => {
           const isFav = favorites[person.id];
 
           return (
@@ -161,7 +98,7 @@ export default function MainContent() {
               {/* Image Header with Badge */}
               <div className="relative h-48 w-full overflow-hidden bg-violet-100">
                 <img
-                  src={person.image}
+                  src={person.image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop'}
                   alt={person.name}
                   className="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300"
                 />
@@ -181,7 +118,7 @@ export default function MainContent() {
                   {/* Name, Age and Heart Button */}
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="text-base font-bold text-[#24202e]">
-                      {person.name}, {person.age}
+                      {person.name}{person.age ? `, ${person.age}` : ''}
                     </h3>
                     <button
                       onClick={() => toggleFavorite(person.id)}
@@ -203,13 +140,13 @@ export default function MainContent() {
 
                   {/* Price */}
                   <p className="text-sm font-extrabold text-[#24202e] mb-3">
-                    {person.price}
+                    {person.price || `${formatPersonPrice(getPersonPrice(person))}/hr`}
                   </p>
                 </div>
 
                 {/* Tags */}
                 <div className="flex flex-wrap gap-1.5 pt-2 border-t border-[#eeeaf5]">
-                  {person.tags.map((tag) => (
+                  {(person.tags || []).map((tag) => (
                     <span
                       key={tag}
                       className="px-2.5 py-1 bg-violet-50 text-violet-700 text-[11px] font-medium rounded-md border border-violet-100"
@@ -218,12 +155,12 @@ export default function MainContent() {
                     </span>
                   ))}
                 </div>
-                <Link to={`/people/${person.name.toLowerCase()}`} className="mt-3 block rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-2 text-center text-xs font-semibold text-white">View profile</Link>
+                <Link to={`/people/${person.id}`} className="mt-3 block rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-2 text-center text-xs font-semibold text-white">View profile</Link>
               </div>
             </div>
           );
         })}
-      </div>
+      </div>}
     </main>
   );
 }
