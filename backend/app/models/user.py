@@ -55,3 +55,19 @@ class ProfileUpdate(BaseModel):
     interests: Optional[str] = None
     services: Optional[List[ServiceItem]] = None   # ← now accepts objects
     gallery: Optional[List[str]] = None
+    
+class BookingCreate(BaseModel):
+    booking_date: str
+    start_time: str
+    end_time: str
+    timezone: Optional[str] = "Asia/Kolkata"
+    duration_minutes: int
+    location_type: Literal["in_person", "online"]
+    location: Optional[str] = None
+    service_id: Optional[str] = None
+    rent_person_id: str
+    special_requirements: Optional[str] = None
+    customer_note: Optional[str] = None
+    price: int
+    platform_fee: int
+    total_amount: int
