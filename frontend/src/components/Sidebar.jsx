@@ -30,8 +30,8 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
     { to: '/fitness', label: 'Fitness buddy', icon: Activity },
     { to: '/networking', label: 'Professional networking', icon: Briefcase },
     { to: '/photoshoot', label: 'Photoshoot partner', icon: Camera },
-    { to: '/gaming', label: 'Gaming buddy', icon: Gamepad2 },
-    { to: '/other', label: 'Other', icon: MoreHorizontal },
+    // { to: '/gaming', label: 'Gaming buddy', icon: Gamepad2 },
+    // { to: '/other', label: 'Other', icon: MoreHorizontal },
   ];
   const user = getStoredUser();
   const role = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
