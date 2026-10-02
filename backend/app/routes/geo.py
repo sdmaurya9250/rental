@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request, HTTPException, Query
 import json
+from urllib.parse import quote
 
 router = APIRouter()
 
@@ -9,39 +10,51 @@ def _get_mapbox_token(request: Request) -> str:
     token = getattr(env, "MAPBOX_TOKEN", None) if env else None
     if not token:
         raise HTTPException(status_code=500, detail="MAPBOX_TOKEN not configured")
-    return token
+    return str(token)
+
+
+async def _fetch_json(url: str) -> dict:
+    """Outbound HTTP via Workers JS fetch (urllib does not work on CF Python Workers)."""
+    try:
+        from js import fetch  # Pyodide / Cloudflare Python Workers
+        resp = await fetch(url)
+        status = int(resp.status)
+        text = await resp.text()
+        if status < 200 or status >= 300:
+            raise HTTPException(status_code=502, detail=f"Mapbox HTTP {status}: {text[:200]}")
+        return json.loads(text)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Mapbox fetch failed: {type(e).__name__}: {str(e)}"
+        )
 
 
 @router.get("/geo/geocode")
 async def geocode(
     request: Request,
-    q: str = Query(..., min_length=2, description="Place or city name"),
+    q: str = Query(..., min_length=2),
     limit: int = Query(5, ge=1, le=10),
 ):
-    """Forward geocode: text → list of places with lat/lng (Mapbox)."""
     token = _get_mapbox_token(request)
+    encoded = quote(q)
     url = (
         f"https://api.mapbox.com/geocoding/v5/mapbox.places/"
-        f"{q}.json?access_token={token}&limit={limit}&types=place,locality,neighborhood"
+        f"{encoded}.json?access_token={token}&limit={limit}"
+        f"&types=place,locality,neighborhood"
     )
-
-    import urllib.request
-    try:
-        with urllib.request.urlopen(url, timeout=10) as resp:
-            data = json.loads(resp.read().decode())
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Mapbox error: {str(e)}")
+    data = await _fetch_json(url)
 
     features = []
     for f in data.get("features") or []:
         center = f.get("center") or []
         if len(center) < 2:
             continue
-        ctx = f.get("context") or []
         city = f.get("text") or ""
-        region = ""
-        country = ""
-        for c in ctx:
+        region, country = "", ""
+        for c in f.get("context") or []:
             cid = c.get("id") or ""
             if cid.startswith("region"):
                 region = c.get("text") or ""
@@ -65,19 +78,12 @@ async def reverse_geocode(
     lat: float = Query(...),
     lng: float = Query(...),
 ):
-    """Reverse geocode: lat/lng → city name (Mapbox)."""
     token = _get_mapbox_token(request)
     url = (
         f"https://api.mapbox.com/geocoding/v5/mapbox.places/"
         f"{lng},{lat}.json?access_token={token}&types=place,locality"
     )
-
-    import urllib.request
-    try:
-        with urllib.request.urlopen(url, timeout=10) as resp:
-            data = json.loads(resp.read().decode())
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Mapbox error: {str(e)}")
+    data = await _fetch_json(url)
 
     features = data.get("features") or []
     if not features:
@@ -85,11 +91,9 @@ async def reverse_geocode(
 
     f = features[0]
     city = f.get("text") or ""
-    place_name = f.get("place_name") or city
-
     return {
         "city": city,
-        "place_name": place_name,
+        "place_name": f.get("place_name") or city,
         "lat": lat,
         "lng": lng,
     }
