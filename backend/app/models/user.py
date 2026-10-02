@@ -35,6 +35,12 @@ class TokenResponse(BaseModel):
     user: dict
 
 
+class ServiceItem(BaseModel):
+    id: Optional[str] = None
+    name: str
+    price: int = 0
+
+
 class ProfileUpdate(BaseModel):
     fullName: Optional[str] = None
     phone: Optional[str] = None
@@ -47,5 +53,30 @@ class ProfileUpdate(BaseModel):
     availableTime: Optional[str] = None
     languages: Optional[str] = None
     interests: Optional[str] = None
-    services: Optional[List[str]] = None
+    services: Optional[List[ServiceItem]] = None   # ← now accepts objects
     gallery: Optional[List[str]] = None
+    
+class BookingCreate(BaseModel):
+    booking_date: str
+    start_time: str
+    end_time: str
+    timezone: Optional[str] = "Asia/Kolkata"
+    duration_minutes: int
+    location_type: Literal["in_person", "online"]
+    location: Optional[str] = None
+    service_id: Optional[str] = None
+    service_name: Optional[str] = None
+    rent_person_id: str
+    special_requirements: Optional[str] = None
+    customer_note: Optional[str] = None
+    price: int
+    platform_fee: int
+    total_amount: int
+
+
+class BookingReject(BaseModel):
+    rejection_message: Optional[str] = None
+
+class MessageCreate(BaseModel):
+    receiver_id: str
+    content: str = Field(..., min_length=1, max_length=2000)
