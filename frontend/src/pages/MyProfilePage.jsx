@@ -1,5 +1,5 @@
 import { Camera, ChevronDown, Plus, Save, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FeaturePage from '../components/FeaturePage';
 import { getMyProfile, getStoredUser, isAuthenticated, updateMyProfile } from '../auth/auth';
@@ -166,6 +166,12 @@ function Chip({ children, onRemove }) {
 
 export default function MyProfilePage() {
   const navigate = useNavigate();
+  const videoRef = useRef(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const user = getStoredUser() || {};
+  const role = String(user.want_to || user.wantTo || user.accountIntent || '').trim().toLowerCase();
+  const isFinderRole = role === 'find' || role.includes('find a rentpeople');
   const [profile, setProfile] = useState(defaultProfile);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [saved, setSaved] = useState(false);
@@ -173,6 +179,31 @@ export default function MyProfilePage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [languageDraft, setLanguageDraft] = useState('');
   const [serviceDraft, setServiceDraft] = useState({ name: '', price: '' });
+
+  useEffect(() => {
+    if (!cameraOpen) return undefined;
+    let active = true;
+    let stream;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('Camera access is not available in this browser. You can upload a photo instead.');
+      return () => {};
+    }
+    setCameraError('');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+      .then((cameraStream) => {
+        if (!active) {
+          cameraStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        stream = cameraStream;
+        if (videoRef.current) videoRef.current.srcObject = cameraStream;
+      })
+      .catch(() => { if (active) setCameraError('Could not open your camera. Check camera permission or upload a photo instead.'); });
+    return () => {
+      active = false;
+      stream?.getTracks().forEach((track) => track.stop());
+    };
+  }, [cameraOpen]);
 
   // The profile endpoint identifies the account from the saved bearer token.
   useEffect(() => {
@@ -200,8 +231,23 @@ export default function MyProfilePage() {
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => setProfile({ ...profile, image: String(reader.result) });
+    reader.onload = () => setProfile((current) => ({ ...current, image: String(reader.result) }));
     reader.readAsDataURL(file);
+    event.target.value = '';
+  };
+
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    if (!video?.videoWidth || !video?.videoHeight) {
+      setCameraError('The camera is not ready yet.');
+      return;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    setProfile((current) => ({ ...current, image: canvas.toDataURL('image/jpeg', 0.9) }));
+    setCameraOpen(false);
   };
 
   const uploadGalleryImages = async (event) => {
@@ -295,8 +341,16 @@ export default function MyProfilePage() {
     }
   };
 
+  const completionItems = [profile.fullName, profile.city, profile.bio, profile.image, profile.languages.length > 0];
+  if (!isFinderRole) completionItems.push(profile.services.length > 0, profile.availableDays.length > 0 || profile.timeSlots.length > 0);
+  const completion = Math.round((completionItems.filter(Boolean).length / completionItems.length) * 100);
+
   return (
     <FeaturePage title="My profile" subtitle="Keep your details, profile image, and pricing up to date.">
+      <section className="mb-6 max-w-5xl rounded-2xl border border-violet-100 bg-white p-5 shadow-sm" aria-label="Profile completion">
+        <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-[#171426]">Profile completion</h2><p className="mt-1 text-sm text-[#706a80]">A complete profile helps people get to know you.</p></div><span className="text-lg font-bold text-violet-700">{loadingProfile ? '…' : `${completion}%`}</span></div>
+        <div className="mt-4 h-3 overflow-hidden rounded-full bg-violet-100" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={completion}><div className="h-full rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 transition-all" style={{ width: `${completion}%` }} /></div>
+      </section>
       {loadingProfile ? <p className="text-sm text-[#706a80]">Loading your profile…</p> : errorMsg && !profile.id ? <p role="alert" className="text-sm text-red-600">{errorMsg}</p> : (
       <div className="grid max-w-5xl gap-6 lg:grid-cols-[260px_1fr]">
         <aside className="h-fit rounded-2xl border border-[#e7e1f2] bg-white p-5 text-center shadow-sm">
@@ -306,9 +360,16 @@ export default function MyProfilePage() {
             Upload image
             <input type="file" accept="image/*" onChange={uploadImage} className="hidden" />
           </label>
+          <button type="button" onClick={() => { setCameraError(''); setCameraOpen(true); }} className="mt-2 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"><Camera className="h-4 w-4" />Open camera</button>
+          {cameraOpen && <div className="mt-4 space-y-2">
+            <video ref={videoRef} autoPlay playsInline muted className="aspect-video w-full rounded-lg bg-black object-cover" />
+            {cameraError && <p role="alert" className="text-xs text-red-600">{cameraError}</p>}
+            <div className="flex justify-center gap-2"><button type="button" onClick={capturePhoto} className="rounded-lg bg-fuchsia-600 px-3 py-2 text-xs font-semibold text-white">Take picture</button><button type="button" onClick={() => setCameraOpen(false)} className="rounded-lg border px-3 py-2 text-xs font-semibold">Close</button></div>
+          </div>}
+          {cameraError && !cameraOpen && <p role="alert" className="mt-2 text-xs text-red-600">{cameraError}</p>}
           <p className="mt-3 text-xs text-[#706a80]">Use a clear profile image.</p>
 
-          <label className="mt-5 flex items-center justify-between rounded-lg border border-[#e4dff0] px-3 py-2.5 text-sm font-semibold text-[#40394f]">
+          {!isFinderRole && <label className="mt-5 flex items-center justify-between rounded-lg border border-[#e4dff0] px-3 py-2.5 text-sm font-semibold text-[#40394f]">
             Available
             <button
               type="button"
@@ -319,7 +380,7 @@ export default function MyProfilePage() {
             >
               <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${profile.isAvailable ? 'translate-x-5' : 'translate-x-0.5'}`} />
             </button>
-          </label>
+          </label>}
         </aside>
 
         <div className="space-y-5 rounded-2xl border border-[#e7e1f2] bg-white p-5 shadow-sm">
@@ -382,7 +443,7 @@ export default function MyProfilePage() {
           </CollapsibleSection>
 
           {/* Availability: days + hourly time slots */}
-          <CollapsibleSection title="Available time" subtitle="Choose your days, then add one or more hourly time slots.">
+          {!isFinderRole && <CollapsibleSection title="Available time" subtitle="Choose your days, then add one or more hourly time slots.">
             <p className="text-xs font-semibold text-[#706a80]">Days available</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {DAYS.map((day) => {
@@ -439,10 +500,10 @@ export default function MyProfilePage() {
                 <Plus className="h-3.5 w-3.5" />Add another time slot
               </button>
             </div>
-          </CollapsibleSection>
+          </CollapsibleSection>}
 
           {/* Interests / services with per-item pricing */}
-          <CollapsibleSection title="Interests & services" subtitle="Add what you offer and set your own price for each.">
+          {!isFinderRole && <CollapsibleSection title="Interests & services" subtitle="Add what you offer and set your own price for each.">
             <div className="flex flex-wrap items-end gap-2">
               <label className="text-sm font-semibold text-[#40394f]">
                 Choose from list
@@ -508,7 +569,7 @@ export default function MyProfilePage() {
                 </div>
               ))}
             </div>
-          </CollapsibleSection>
+          </CollapsibleSection>}
 
           {/* Photos */}
           <CollapsibleSection title="Photos" subtitle={`Add a few more photos so people get a feel for you. Up to ${MAX_GALLERY_IMAGES}.`}>

@@ -10,13 +10,16 @@ import MessagesPage from './pages/MessagesPage';
 import ProfilePage from './pages/ProfilePage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import MyProfilePage from './pages/MyProfilePage';
+import DashboardPage from './pages/DashboardPage';
+import { isAuthenticated } from './auth/auth';
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <Home />} />
         <Route element={<AppLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/browse" element={<Browse />} />
           <Route path="/bookings" element={<BookingsList />} />
           <Route path="/search" element={<SearchResultsPage />} />

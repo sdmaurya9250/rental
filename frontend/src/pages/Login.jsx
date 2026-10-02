@@ -11,7 +11,7 @@ export default function Login() {
   // authApi.js has already stored it in localStorage, so this only needs to
   // handle where the app goes next.
   function handleLoginSuccess(data) {
-    navigate('/browse', { replace: true, state: { user: data?.user } });
+    navigate('/dashboard', { replace: true, state: { user: data?.user } });
   }
 
   return (

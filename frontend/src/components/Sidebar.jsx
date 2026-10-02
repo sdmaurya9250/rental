@@ -47,7 +47,7 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
   const categories = isBecomeRole
     ? roleCategories
     : isFindRole
-      ? allCategories.filter((category) => category.label !== 'My profile')
+      ? allCategories
       : isBothRole
         ? [...allCategories, roleCategories[0]]
         : allCategories;
