@@ -215,3 +215,23 @@ export function createBooking(booking) {
 export function getMyBookings() {
   return request('/api/bookings', { auth: true });
 }
+
+export function approveBooking(bookingId) {
+  return request(`/api/bookings/${encodeURIComponent(bookingId)}/approve`, { method: 'POST', auth: true });
+}
+
+export function getConversations() {
+  return request('/api/messages/conversations', { auth: true });
+}
+
+export function getConversationMessages(userId) {
+  return request(`/api/messages/${encodeURIComponent(userId)}`, { auth: true });
+}
+
+export function sendMessage(receiverId, content) {
+  return request('/api/messages', {
+    method: 'POST',
+    body: { receiver_id: receiverId, content },
+    auth: true,
+  });
+}

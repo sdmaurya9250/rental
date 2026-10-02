@@ -1,62 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getMyBookings, getStoredUser, isAuthenticated } from '../auth/auth';
+import { getStoredUser, isAuthenticated } from '../auth/auth';
 import { formatPrice } from '../data/people';
 import AppointmentDetails from '../components/AppointmentDetails';
-
-// Keep sample appointments enabled while the booking approval API is not available.
-const USE_DUMMY_DATA = true;
-
-const DUMMY_BOOKINGS = [
-  {
-    id: 'bk_out_1001', direction: 'outgoing', person_name: 'Aarav Sharma', person_image: 'https://i.pravatar.cc/150?img=12',
-    booking_status: 'pending', booking_date: '2026-10-05', start_time: '10:00', end_time: '11:00', duration_minutes: 60,
-    location_type: 'online', location: '', timezone: 'Asia/Kolkata', service_name: 'Coffee Partner', total_amount: 1500,
-    special_requirements: 'Please suggest a quiet cafe or a video call.', customer_note: 'Looking forward to meeting!',
-  },
-  {
-    id: 'bk_out_1002', direction: 'outgoing', person_name: 'Priya Singh', person_image: 'https://i.pravatar.cc/150?img=47',
-    booking_status: 'approved', booking_date: '2026-10-12', start_time: '15:30', end_time: '17:00', duration_minutes: 90,
-    location_type: 'in_person', location: 'Civil Lines, Prayagraj', timezone: 'Asia/Kolkata', service_name: 'Event Partner', total_amount: 2250,
-    special_requirements: '', customer_note: 'I will message when I arrive.',
-  },
-  {
-    id: 'bk_in_1003', direction: 'incoming', person_name: 'Rohan Verma', person_image: 'https://i.pravatar.cc/150?img=33',
-    booking_status: 'pending', booking_date: '2026-10-18', start_time: '18:00', end_time: '19:00', duration_minutes: 60,
-    location_type: 'online', location: '', timezone: 'Asia/Kolkata', service_name: 'Conversation Partner', total_amount: 1200,
-    special_requirements: 'Would like to discuss local travel options.', customer_note: 'Please let me know if this time works.',
-  },
-  {
-    id: 'bk_in_1004', direction: 'incoming', person_name: 'Neha Gupta', person_image: 'https://i.pravatar.cc/150?img=45',
-    booking_status: 'approved', booking_date: '2026-10-22', start_time: '11:00', end_time: '12:30', duration_minutes: 90,
-    location_type: 'in_person', location: 'Katra, Prayagraj', timezone: 'Asia/Kolkata', service_name: 'Coffee Partner', total_amount: 1800,
-    special_requirements: '', customer_note: 'A cafe near the university would be great.',
-  },
-  {
-    id: 'bk_out_1005', direction: 'outgoing', person_name: 'Kabir Mehta', person_image: 'https://i.pravatar.cc/150?img=15',
-    booking_status: 'completed', booking_date: '2026-09-18', start_time: '09:00', end_time: '10:00', duration_minutes: 60,
-    location_type: 'online', location: '', timezone: 'Asia/Kolkata', service_name: 'Travel Buddy', total_amount: 1000,
-    special_requirements: '', customer_note: 'Thanks for the great recommendations!',
-  },
-  {
-    id: 'bk_in_1006', direction: 'incoming', person_name: 'Isha Patel', person_image: 'https://i.pravatar.cc/150?img=49',
-    booking_status: 'completed', booking_date: '2026-09-12', start_time: '16:00', end_time: '17:30', duration_minutes: 90,
-    location_type: 'in_person', location: 'Civil Lines, Prayagraj', timezone: 'Asia/Kolkata', service_name: 'Event Partner', total_amount: 1800,
-    special_requirements: 'Help with event planning ideas.', customer_note: 'Thank you for your time.',
-  },
-  {
-    id: 'bk_out_1007', direction: 'outgoing', person_name: 'Vikram Rao', person_image: 'https://i.pravatar.cc/150?img=60',
-    booking_status: 'cancelled', booking_date: '2026-09-24', start_time: '13:00', end_time: '14:00', duration_minutes: 60,
-    location_type: 'in_person', location: 'Bandra, Mumbai', timezone: 'Asia/Kolkata', service_name: 'Coffee Partner', total_amount: 1200,
-    cancellation_message: 'Plans changed; appointment cancelled by requester.',
-  },
-  {
-    id: 'bk_in_1008', direction: 'incoming', person_name: 'Meera Shah', person_image: 'https://i.pravatar.cc/150?img=44',
-    booking_status: 'rejected', booking_date: '2026-09-20', start_time: '14:00', end_time: '15:00', duration_minutes: 60,
-    location_type: 'online', location: '', timezone: 'Asia/Kolkata', service_name: 'Conversation Partner', total_amount: 900,
-    rejection_message: 'Sorry, I am unavailable at that time. Please choose another slot.',
-  },
-];
+import { approveBookingRecord, fetchBookingRecords } from './finderApi';
 
 const tabs = ['Upcoming', 'Completed', 'Cancelled'];
 
@@ -86,6 +33,14 @@ function getDirection(booking, user) {
   return 'outgoing';
 }
 
+function getChatPartnerId(booking, user) {
+  const userId = String(user?.id || user?.user_id || user?.profile_id || '');
+  const providerId = String(booking.rent_person_id || booking.provider_id || booking.rent_person?.id || '');
+  const customerId = String(booking.customer_id || booking.customer_user_id || booking.finder_id || booking.finder_user_id || booking.requester_id || booking.booked_by_id || booking.user_id || booking.customer?.id || '');
+  if (userId && userId === providerId) return customerId;
+  return providerId || customerId;
+}
+
 function statusLabel(status) {
   const normalized = String(status || 'pending').toLowerCase();
   return normalized === 'confirmed' ? 'Approved' : normalized.charAt(0).toUpperCase() + normalized.slice(1);
@@ -102,24 +57,25 @@ export default function BookingsList() {
   const user = getStoredUser();
   const role = getRole(user);
   const [activeTab, setActiveTab] = useState('Upcoming');
-  const [bookings, setBookings] = useState(USE_DUMMY_DATA ? DUMMY_BOOKINGS : []);
-  const [loading, setLoading] = useState(!USE_DUMMY_DATA);
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedBooking, setExpandedBooking] = useState(null);
   const [rejectingBooking, setRejectingBooking] = useState(null);
   const [rejectionMessage, setRejectionMessage] = useState('');
+  const [approvingBooking, setApprovingBooking] = useState(null);
+  const [actionError, setActionError] = useState('');
 
-  const signedIn = USE_DUMMY_DATA || isAuthenticated();
+  const signedIn = isAuthenticated();
 
   useEffect(() => {
-    if (USE_DUMMY_DATA) return undefined;
     let active = true;
     if (!isAuthenticated()) {
       setError('Sign in to see your bookings.');
       setLoading(false);
       return () => { active = false; };
     }
-    getMyBookings()
+    fetchBookingRecords()
       .then((data) => { if (active) setBookings(Array.isArray(data) ? data : data?.bookings || []); })
       .catch((requestError) => { if (active) setError(requestError.message || 'Unable to load bookings.'); })
       .finally(() => { if (active) setLoading(false); });
@@ -144,6 +100,23 @@ export default function BookingsList() {
     setRejectionMessage('');
   }
 
+  async function approveBookingRequest(booking) {
+    setApprovingBooking(booking.id);
+    setActionError('');
+    try {
+      const result = await approveBookingRecord(booking.id);
+      const approvedBooking = result?.booking || result;
+      updateBooking(booking.id, {
+        ...(approvedBooking && typeof approvedBooking === 'object' ? approvedBooking : {}),
+        booking_status: approvedBooking?.booking_status || approvedBooking?.status || 'approved',
+      });
+    } catch (requestError) {
+      setActionError(requestError.message || 'Unable to approve this booking.');
+    } finally {
+      setApprovingBooking(null);
+    }
+  }
+
   function rejectBooking(booking) {
     updateBooking(booking.id, { booking_status: 'rejected', rejection_message: rejectionMessage.trim() });
   }
@@ -159,6 +132,8 @@ export default function BookingsList() {
         {tabs.map((tab) => <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`rounded-lg px-5 py-2 text-sm font-medium transition ${activeTab === tab ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow' : 'text-[#706a80] hover:text-violet-700'}`}>{tab}</button>)}
       </div>
 
+      {actionError && <p role="alert" className="text-sm text-red-600">{actionError}</p>}
+
       {loading ? <p className="text-sm text-[#706a80]">Loading bookings…</p> : error ? <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{error} {!signedIn && <Link to="/login" className="font-semibold underline">Sign in</Link>}</div> : visibleBookings.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-[#d9d0eb] bg-white p-10 text-center">
           <p className="font-semibold">No {activeTab.toLowerCase()} appointments yet.</p>
@@ -171,6 +146,8 @@ export default function BookingsList() {
             const isIncoming = direction === 'incoming';
             const status = String(booking.booking_status || 'pending').toLowerCase();
             const canRespond = isIncoming && status === 'pending';
+            const chatPartnerId = getChatPartnerId(booking, user);
+            const canChat = ['approved', 'confirmed'].includes(status) && chatPartnerId;
             const isExpanded = expandedBooking === booking.id;
             const personName = booking.person_name || booking.customer_name || booking.rent_person?.name || 'Unknown person';
             const personImage = booking.person_image || booking.customer_image || booking.rent_person?.image || 'https://i.pravatar.cc/150?img=1';
@@ -189,8 +166,9 @@ export default function BookingsList() {
                   <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
                     <span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${statusStyle(status)}`}>{statusLabel(status)}</span>
                     <span className="text-sm font-bold">{formatPrice(Number(booking.total_amount) || 0)}</span>
+                    {canChat && <Link to={`/messages?userId=${encodeURIComponent(chatPartnerId)}`} className="rounded-lg border border-violet-200 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50">Chat</Link>}
                     {canRespond && <>
-                      <button type="button" onClick={() => updateBooking(booking.id, { booking_status: 'approved', response_message: '' })} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">Approve</button>
+                      <button type="button" onClick={() => approveBookingRequest(booking)} disabled={approvingBooking === booking.id} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">{approvingBooking === booking.id ? 'Approving…' : 'Approve'}</button>
                       <button type="button" onClick={() => { setRejectingBooking(booking.id); setRejectionMessage(''); }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50">Reject</button>
                     </>}
                   </div>

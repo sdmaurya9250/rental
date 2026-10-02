@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Heart, MapPin } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import FeaturePage from '../components/FeaturePage';
-import { createBooking, isAuthenticated } from '../auth/auth';
-import { formatPersonPrice as formatPrice, fetchPersonById, getPersonPrice } from './finderApi';
+import { isAuthenticated } from '../auth/auth';
+import { createBookingRecord, formatPersonPrice as formatPrice, fetchPersonById, getPersonPrice } from './finderApi';
 
 function localDate() {
   const now = new Date();
@@ -114,7 +114,7 @@ function ProfileDetails({ person }) {
 
     setSubmitting(true);
     try {
-      const booking = await createBooking({
+      const booking = await createBookingRecord({
         booking_date: bookingDate,
         start_time: startTime,
         end_time: endTime,

@@ -1,3 +1,5 @@
+import { approveBooking, createBooking, getConversationMessages, getConversations, getMyBookings, sendMessage } from '../auth/auth';
+
 const API_BASE_URL = 'https://rental-backend.kudoo-live.workers.dev/api/people';
 
 async function requestPeople(path = '') {
@@ -26,6 +28,30 @@ export async function fetchPersonById(personId) {
     throw new Error('The profile could not be found.');
   }
   return person;
+}
+
+export function createBookingRecord(booking) {
+  return createBooking(booking);
+}
+
+export function fetchBookingRecords() {
+  return getMyBookings();
+}
+
+export function approveBookingRecord(bookingId) {
+  return approveBooking(bookingId);
+}
+
+export function fetchConversations() {
+  return getConversations();
+}
+
+export function fetchConversationMessages(userId) {
+  return getConversationMessages(userId);
+}
+
+export function sendChatMessage(receiverId, content) {
+  return sendMessage(receiverId, content);
 }
 
 export function getPersonPrice(person) {
