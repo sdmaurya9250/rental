@@ -3,8 +3,8 @@ import MainContent from './MainContent';
 function CategoryPage({ title, description }) {
   return (
     <div>
-      <div className="border-b border-[#e7e1f2] bg-white px-6 py-5 lg:px-8">
-        <h1 className="text-2xl font-bold text-[#171426]">{title}</h1>
+      <div className="border-b border-violet-100 bg-white px-4 py-4 sm:px-6 sm:py-5 xl:px-8">
+        <h1 className="text-xl font-bold text-[#171426] sm:text-2xl">{title}</h1>
         <p className="mt-1 text-sm text-[#706a80]">{description}</p>
       </div>
       <MainContent />

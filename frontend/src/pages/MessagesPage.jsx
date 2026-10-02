@@ -13,7 +13,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 //   Image as ImageIcon,
 //   CheckCheck
 // } from 'lucide-[#e7e1f2]'; // Adjust icon import path if needed
-import { Send, Search, SlidersHorizontal, Video, Phone, MoreVertical, Plus, Smile, Paperclip, Image as ImageIcon, CheckCheck } from 'lucide-react';
+import { ArrowLeft, Send, Search, SlidersHorizontal, Video, Phone, MoreVertical, Plus, Smile, Paperclip, Image as ImageIcon, CheckCheck } from 'lucide-react';
 import FeaturePage from '../components/FeaturePage';
 import { getStoredUser, isAuthenticated } from '../auth/auth';
 import { fetchConversationMessages, fetchConversations, sendChatMessage } from './finderApi';
@@ -144,10 +144,10 @@ export default function MessagesPage() {
 
   return (
     <FeaturePage title="Messages" subtitle="Finders and RentPeople can chat with each other here.">
-      <div className="grid h-[750px] max-w-6xl overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xl shadow-slate-100/50 md:grid-cols-[340px_1fr]">
+      <div className="grid h-[min(76vh,750px)] min-h-[520px] max-w-6xl overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-lg shadow-violet-100/50 md:grid-cols-[minmax(250px,0.8fr)_minmax(0,1.5fr)]">
         
         {/* Left Sidebar */}
-        <aside className="flex flex-col border-b border-slate-100 md:border-b-0 md:border-r">
+        <aside className={`${selectedUserId ? 'hidden' : 'flex'} min-h-0 flex-col border-b border-slate-100 md:flex md:border-b-0 md:border-r`}>
           {/* Search Header */}
           <div className="p-4">
             <div className="flex items-center gap-2">
@@ -237,12 +237,13 @@ export default function MessagesPage() {
         </aside>
 
         {/* Right Section: Chat Panel */}
-        <section className="flex flex-col bg-slate-50/30">
+        <section className={`${selectedUserId ? 'flex' : 'hidden md:flex'} min-h-0 flex-col bg-slate-50/30`}>
           {selectedUserId ? (
             <>
               {/* Header */}
-              <header className="flex items-center justify-between border-b border-slate-100 bg-white px-6 py-4">
+              <header className="flex items-center justify-between border-b border-slate-100 bg-white px-3 py-3 sm:px-6 sm:py-4">
                 <div className="flex items-center gap-3">
+                  <button type="button" onClick={() => setSelectedUserId('')} className="rounded-lg p-2 text-violet-700 hover:bg-violet-50 md:hidden" aria-label="Back to conversations"><ArrowLeft className="h-4 w-4" /></button>
                   <div className="relative">
                     <img
                       src={partnerImage || 'https://i.pravatar.cc/100?img=1'}
@@ -274,7 +275,7 @@ export default function MessagesPage() {
               </header>
 
               {/* Chat Thread */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 sm:p-6">
                 {/* Date Divider */}
                 <div className="my-2 flex justify-center">
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium text-slate-400">

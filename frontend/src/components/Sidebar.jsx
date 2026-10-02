@@ -16,7 +16,7 @@ import { getStoredUser } from '../auth/auth';
 
 export default function Sidebar({ mobileOpen, onNavigate }) {
   const allCategories = [
-    { to: '/', label: 'Home', icon: LayoutGrid, end: true },
+    { to: '/dashboard', label: 'Home', icon: LayoutGrid, end: true },
     { to: '/browse', label: 'Browse people', icon: Users },
     // { to: '/search', label: 'Search people', icon: Search },
     { to: '/bookings', label: 'My bookings', icon: CalendarDays },
@@ -53,7 +53,7 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
         : allCategories;
 
   return (
-    <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col overflow-y-auto border-r border-violet-950 bg-[#100d2b] p-4 text-white shadow-xl transition-transform duration-200 lg:static lg:z-auto lg:w-64 lg:min-w-[256px] lg:translate-x-0 lg:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+    <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col overflow-y-auto border-r border-violet-950 bg-[#100d2b] p-4 text-white shadow-xl transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-60 lg:min-w-[240px] lg:shrink-0 lg:translate-x-0 lg:shadow-none xl:w-64 xl:min-w-[256px] ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="mb-5 flex items-center justify-between border-b border-white/10 px-1 pb-4">
         <NavLink to="/" onClick={onNavigate} className="flex items-center gap-2.5">
           <span className="relative flex h-8 w-8 items-center justify-center text-xl font-black text-fuchsia-400">♥<span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-violet-400" /></span>

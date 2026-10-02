@@ -137,7 +137,7 @@ export default function BookingsList() {
   }
 
   return (
-    <main className="min-h-full space-y-6 bg-[#f8f6ff] p-6 text-[#171426] lg:p-8">
+    <main className="min-h-full space-y-5 bg-[#f5f3ff] p-4 text-[#171426] sm:space-y-6 sm:p-6 xl:p-8">
       <div>
         <h1 className="text-2xl font-bold">My bookings</h1>
         <p className="mt-1 text-sm text-[#706a80]">Track appointments you requested and manage requests you receive.</p>
