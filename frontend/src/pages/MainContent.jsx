@@ -33,7 +33,7 @@ export default function MainContent() {
   };
 
   return (
-    <main className="flex-1 bg-[#f8f6ff] p-6 lg:p-8 overflow-y-auto text-[#171426]">
+    <main className="flex-1 overflow-y-auto bg-[#f5f3ff] p-4 text-[#171426] sm:p-6 xl:p-8">
       {/* Header Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
@@ -86,7 +86,7 @@ export default function MainContent() {
       {loading && <p role="status" className="py-12 text-center text-sm text-[#706a80]">Loading people…</p>}
       {!loading && loadError && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{loadError}</p>}
       {!loading && !loadError && visiblePeople.length === 0 && <p className="py-12 text-center text-sm text-[#706a80]">No people found for this location.</p>}
-      {!loading && !loadError && visiblePeople.length > 0 && <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+      {!loading && !loadError && visiblePeople.length > 0 && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
         {visiblePeople.map((person) => {
           const isFav = favorites[person.id];
 

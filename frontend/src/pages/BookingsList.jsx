@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { getStoredUser, isAuthenticated } from '../auth/auth';
 import { formatPrice } from '../data/people';
 import AppointmentDetails from '../components/AppointmentDetails';
-import { approveBookingRecord, fetchBookingRecords } from './finderApi';
+import { approveBookingRecord, fetchBookingRecords, rejectBookingRecord } from './finderApi';
 
 const tabs = ['Upcoming', 'Completed', 'Cancelled'];
 
@@ -64,6 +64,7 @@ export default function BookingsList() {
   const [rejectingBooking, setRejectingBooking] = useState(null);
   const [rejectionMessage, setRejectionMessage] = useState('');
   const [approvingBooking, setApprovingBooking] = useState(null);
+  const [submittingRejection, setSubmittingRejection] = useState(null);
   const [actionError, setActionError] = useState('');
 
   const signedIn = isAuthenticated();
@@ -117,12 +118,26 @@ export default function BookingsList() {
     }
   }
 
-  function rejectBooking(booking) {
-    updateBooking(booking.id, { booking_status: 'rejected', rejection_message: rejectionMessage.trim() });
+  async function rejectBookingRequest(booking) {
+    setSubmittingRejection(booking.id);
+    setActionError('');
+    try {
+      const result = await rejectBookingRecord(booking.id, rejectionMessage.trim());
+      const rejectedBooking = result?.booking || result;
+      updateBooking(booking.id, {
+        ...(rejectedBooking && typeof rejectedBooking === 'object' ? rejectedBooking : {}),
+        booking_status: rejectedBooking?.booking_status || rejectedBooking?.status || 'rejected',
+        rejection_message: rejectedBooking?.rejection_message ?? rejectionMessage.trim(),
+      });
+    } catch (requestError) {
+      setActionError(requestError.message || 'Unable to reject this booking.');
+    } finally {
+      setSubmittingRejection(null);
+    }
   }
 
   return (
-    <main className="min-h-full space-y-6 bg-[#f8f6ff] p-6 text-[#171426] lg:p-8">
+    <main className="min-h-full space-y-5 bg-[#f5f3ff] p-4 text-[#171426] sm:space-y-6 sm:p-6 xl:p-8">
       <div>
         <h1 className="text-2xl font-bold">My bookings</h1>
         <p className="mt-1 text-sm text-[#706a80]">Track appointments you requested and manage requests you receive.</p>
@@ -180,7 +195,7 @@ export default function BookingsList() {
                   </label>
                   <div className="mt-3 flex justify-end gap-2">
                     <button type="button" onClick={() => setRejectingBooking(null)} className="rounded-lg px-3 py-2 text-xs font-semibold text-[#706a80]">Cancel</button>
-                    <button type="button" onClick={() => rejectBooking(booking)} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700">Confirm rejection</button>
+                    <button type="button" onClick={() => rejectBookingRequest(booking)} disabled={submittingRejection === booking.id} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50">{submittingRejection === booking.id ? 'Rejecting…' : 'Confirm rejection'}</button>
                   </div>
                 </div>}
 

@@ -205,7 +205,13 @@ export function getMyProfile() {
 
 // Profile save uses POST with the bearer token.
 export function updateMyProfile(profile) {
-  return request('/api/profile', { method: 'PUT', body: profile, auth: true });
+  return request('/api/profile', { method: 'PUT', body: profile, auth: true }).then((result) => {
+    const storedUser = getStoredUser() || {};
+    const updatedUser = { ...storedUser, ...profile, ...(result?.profile || {}) };
+    localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('rp-profile-updated'));
+    return result;
+  });
 }
 
 export function createBooking(booking) {
@@ -218,6 +224,14 @@ export function getMyBookings() {
 
 export function approveBooking(bookingId) {
   return request(`/api/bookings/${encodeURIComponent(bookingId)}/approve`, { method: 'POST', auth: true });
+}
+
+export function rejectBooking(bookingId, rejectionMessage = '') {
+  return request(`/api/bookings/${encodeURIComponent(bookingId)}/reject`, {
+    method: 'POST',
+    body: rejectionMessage ? { rejection_message: rejectionMessage } : {},
+    auth: true,
+  });
 }
 
 export function getConversations() {

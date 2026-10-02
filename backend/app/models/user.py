@@ -45,6 +45,8 @@ class ProfileUpdate(BaseModel):
     fullName: Optional[str] = None
     phone: Optional[str] = None
     city: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
     gender: Optional[str] = None
     price: Optional[int] = None
     bio: Optional[str] = None

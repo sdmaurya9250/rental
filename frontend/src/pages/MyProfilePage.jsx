@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FeaturePage from '../components/FeaturePage';
 import { getMyProfile, getStoredUser, isAuthenticated, updateMyProfile } from '../auth/auth';
+import { fetchPeople } from './finderApi';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -14,6 +15,7 @@ function formatHour(h) {
 const HOURS = Array.from({ length: 24 }, (_, h) => formatHour(h));
 
 const SUGGESTED_LANGUAGES = ['English', 'Hindi', 'Marathi', 'Tamil', 'Telugu', 'Bengali', 'Gujarati', 'Kannada', 'Punjabi', 'Urdu'];
+const SUGGESTED_CITIES = ['Ahmedabad', 'Bengaluru', 'Bhopal', 'Chandigarh', 'Chennai', 'Delhi', 'Goa', 'Hyderabad', 'Indore', 'Jaipur', 'Kanpur', 'Kochi', 'Kolkata', 'Lucknow', 'Mumbai', 'Nagpur', 'Noida', 'Prayagraj', 'Pune', 'Surat', 'Varanasi'];
 
 const SUGGESTED_SERVICES = [
   'Coffee Partner',
@@ -179,6 +181,20 @@ export default function MyProfilePage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [languageDraft, setLanguageDraft] = useState('');
   const [serviceDraft, setServiceDraft] = useState({ name: '', price: '' });
+  const [cityOptions, setCityOptions] = useState(SUGGESTED_CITIES);
+  const [customCityMode, setCustomCityMode] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchPeople()
+      .then((people) => {
+        if (!active) return;
+        const directoryCities = people.map((person) => person.location || person.city).filter(Boolean);
+        setCityOptions([...new Set([...SUGGESTED_CITIES, ...directoryCities])].sort((a, b) => a.localeCompare(b)));
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!cameraOpen) return undefined;
@@ -344,6 +360,7 @@ export default function MyProfilePage() {
   const completionItems = [profile.fullName, profile.city, profile.bio, profile.image, profile.languages.length > 0];
   if (!isFinderRole) completionItems.push(profile.services.length > 0, profile.availableDays.length > 0 || profile.timeSlots.length > 0);
   const completion = Math.round((completionItems.filter(Boolean).length / completionItems.length) * 100);
+  const availableCityOptions = [...new Set([...cityOptions, profile.city].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
   return (
     <FeaturePage title="My profile" subtitle="Keep your details, profile image, and pricing up to date.">
@@ -390,7 +407,24 @@ export default function MyProfilePage() {
               <Field label="Full name" name="fullName" value={profile.fullName} onChange={updateField} />
               <Field label="Email" name="email" type="email" value={profile.email} onChange={updateField} />
               <Field label="Phone number" name="phone" type="tel" value={profile.phone} onChange={updateField} />
-              <Field label="City" name="city" value={profile.city} onChange={updateField} />
+              <label className="block text-sm font-semibold text-[#40394f]">
+                City / location
+                <select
+                  value={customCityMode ? 'Other' : profile.city}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setCustomCityMode(value === 'Other');
+                    setProfile((current) => ({ ...current, city: value === 'Other' ? '' : value }));
+                  }}
+                  className="mt-2 w-full rounded-lg border border-[#e4dff0] bg-white px-3 py-2.5 text-sm font-normal outline-none focus:ring-2 focus:ring-violet-300"
+                >
+                  <option value="">Select your city</option>
+                  {availableCityOptions.map((city) => <option key={city} value={city}>{city}</option>)}
+                  <option value="Other">Other / add a city</option>
+                </select>
+                {customCityMode && <input name="city" value={profile.city} onChange={updateField} placeholder="Enter your city or area" className="mt-2 w-full rounded-lg border border-[#e4dff0] px-3 py-2.5 text-sm font-normal outline-none focus:ring-2 focus:ring-violet-300" />}
+                <span className="mt-1 block text-xs font-normal text-[#827b95]">Suggestions include cities where RentPeople are available.</span>
+              </label>
               <label className="block text-sm font-semibold text-[#40394f]">
                 Gender
                 <select

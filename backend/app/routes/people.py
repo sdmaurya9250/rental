@@ -1,155 +1,8 @@
-# from fastapi import APIRouter, Request, Query
-# from typing import Optional
-# import json
-#
-# router = APIRouter()
-#
-#
-# @router.get("/people")
-# async def browse_people(
-#     request: Request,
-#     city: Optional[str] = Query(None, description="Filter by city"),
-#     sort: Optional[str] = Query("popular", description="popular | price_low | price_high"),
-#     limit: int = Query(20, ge=1, le=50),
-# ):
-#     db = request.scope["env"].DB
-#
-#     # Base query: only show people who want to be found / both, and have profile
-#     sql = """
-#         SELECT
-#             id,
-#             full_name,
-#             city,
-#             gender,
-#             price,
-#             bio,
-#             image,
-#             is_available,
-#             services,
-#             interests,
-#             want_to
-#         FROM users
-#         WHERE want_to IN ('Become a RentPeople', 'Both')
-#     """
-#     params = []
-#
-#     if city:
-#         sql += " AND LOWER(city) = LOWER(?)"
-#         params.append(city)
-#
-#     # Sorting
-#     if sort == "price_low":
-#         sql += " ORDER BY COALESCE(price, 999999) ASC"
-#     elif sort == "price_high":
-#         sql += " ORDER BY COALESCE(price, 0) DESC"
-#     else:
-#         # popular = available first, then by price
-#         sql += " ORDER BY is_available DESC, COALESCE(price, 999999) ASC"
-#
-#     sql += " LIMIT ?"
-#     params.append(limit)
-#
-#     rows = await db.prepare(sql).bind(*params).all()
-#
-#     people = []
-#     for row in rows.results if hasattr(rows, "results") else rows:
-#         r = dict(row)
-#
-#         # Parse services / interests into tags
-#         tags = []
-#         try:
-#             services = json.loads(r.get("services") or "[]")
-#             if services and isinstance(services[0], dict):
-#                 tags = [s.get("name") for s in services if s.get("name")]
-#             else:
-#                 tags = [str(s) for s in services]
-#         except Exception:
-#             tags = []
-#
-#         if not tags:
-#             try:
-#                 interests = json.loads(r.get("interests") or "[]")
-#                 tags = interests if isinstance(interests, list) else []
-#             except Exception:
-#                 tags = []
-#
-#         price = r.get("price") or 1500
-#
-#         people.append({
-#             "id": r["id"],
-#             "name": r.get("full_name") or "User",
-#             "location": r.get("city") or "",
-#             "price": f"₹{price:,}/hr",
-#             "priceValue": price,
-#             "isOnline": bool(r.get("is_available", 0)),
-#             "tags": tags[:4],
-#             "image": r.get("image") or "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=600&auto=format&fit=crop",
-#             "gender": r.get("gender") or "",
-#             "bio": r.get("bio") or "",
-#         })
-#
-#     return {
-#         "count": len(people),
-#         "people": people
-#     }
-#
-#
-# @router.get("/people/{user_id}")
-# async def get_person(user_id: str, request: Request):
-#     db = request.scope["env"].DB
-#
-#     row = await db.prepare(
-#         """
-#         SELECT id, full_name, email, mobile, city, gender, price, bio, image,
-#                is_available, available_time, languages, interests, services, want_to
-#         FROM users WHERE id = ?
-#         """
-#     ).bind(user_id).first()
-#
-#     if not row:
-#         from fastapi import HTTPException
-#         raise HTTPException(status_code=404, detail="Person not found")
-#
-#     r = dict(row)
-#
-#     services = []
-#     try:
-#         services = json.loads(r.get("services") or "[]")
-#     except Exception:
-#         services = []
-#
-#     languages = []
-#     try:
-#         languages = json.loads(r.get("languages") or "[]")
-#         if isinstance(languages, str):
-#             languages = [x.strip() for x in languages.split(",") if x.strip()]
-#     except Exception:
-#         languages = []
-#
-#     price = r.get("price") or 1500
-#
-#     return {
-#         "id": r["id"],
-#         "name": r.get("full_name") or "User",
-#         "email": r.get("email"),
-#         "phone": r.get("mobile"),
-#         "location": r.get("city") or "",
-#         "gender": r.get("gender") or "",
-#         "price": f"₹{price:,}/hr",
-#         "priceValue": price,
-#         "isOnline": bool(r.get("is_available", 0)),
-#         "bio": r.get("bio") or "",
-#         "image": r.get("image") or "",
-#         "availableTime": r.get("available_time") or "",
-#         "languages": languages,
-#         "services": services,
-#         "want_to": r.get("want_to") or "",
-#     }
-
-
 from fastapi import APIRouter, Request, Query, HTTPException
 from typing import Optional
 import json
+from fastapi import Query
+import math
 
 router = APIRouter()
 
@@ -313,3 +166,72 @@ async def get_person(user_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Person not found")
 
     return _row_to_person(dict(row), detailed=True)
+
+
+def _haversine_km(lat1, lng1, lat2, lng2) -> float:
+    R = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lng2 - lng1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
+
+
+@router.get("/people")
+async def list_people(
+    request: Request,
+    city: str | None = None,
+    sort: str | None = None,
+    limit: int = Query(50, ge=1, le=100),
+    lat: float | None = Query(None),
+    lng: float | None = Query(None),
+    radius_km: float = Query(50, ge=1, le=500),
+):
+    db = request.scope["env"].DB
+
+    # Base query — only users with location when near-me is used
+    sql = """
+        SELECT id, full_name, city, gender, price, bio, image, is_available,
+               services, interests, want_to, mobile, email, lat, lng
+        FROM users
+        WHERE 1=1
+    """
+    params = []
+
+    if city:
+        sql += " AND LOWER(city) LIKE ?"
+        params.append(f"%{city.lower()}%")
+
+    if lat is not None and lng is not None:
+        sql += " AND lat IS NOT NULL AND lng IS NOT NULL"
+
+    sql += " LIMIT ?"
+    params.append(limit * 3 if (lat is not None and lng is not None) else limit)
+
+    rows = await db.prepare(sql).bind(*params).all()
+    items = rows.results if hasattr(rows, "results") else rows
+
+    people = []
+    for row in items:
+        r = dict(row)
+        person = _row_to_person(r, detailed=False)  # your existing helper
+
+        if lat is not None and lng is not None:
+            ulat, ulng = r.get("lat"), r.get("lng")
+            if ulat is None or ulng is None:
+                continue
+            dist = _haversine_km(lat, lng, float(ulat), float(ulng))
+            if dist > radius_km:
+                continue
+            person["distance_km"] = round(dist, 1)
+
+        people.append(person)
+
+    if lat is not None and lng is not None:
+        people.sort(key=lambda p: p.get("distance_km", 9999))
+    elif sort == "price_low":
+        people.sort(key=lambda p: p.get("priceValue") or p.get("rate") or 999999)
+    elif sort == "price_high":
+        people.sort(key=lambda p: -(p.get("priceValue") or p.get("rate") or 0))
+
+    return people[:limit]

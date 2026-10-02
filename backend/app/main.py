@@ -10,6 +10,7 @@ from routes.people import router as people_router
 from routes.bookings import router as bookings_router
 from routes.favorites import router as favorites_router
 from routes.messages import router as messages_router
+from routes.geo import router as geo_router
 
 app = FastAPI(title="RentPeople API", version="1.0.0")
 
@@ -29,6 +30,7 @@ app.include_router(people_router, prefix="/api", tags=["People"])
 app.include_router(bookings_router, prefix="/api", tags=["Bookings"])
 app.include_router(favorites_router, prefix="/api", tags=["Favorites"])
 app.include_router(messages_router, prefix="/api", tags=["Messages"])
+app.include_router(geo_router, prefix="/api", tags=["Geo"])
 
 
 class Default(WorkerEntrypoint):
