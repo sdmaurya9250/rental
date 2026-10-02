@@ -1,4 +1,4 @@
-import { approveBooking, createBooking, getConversationMessages, getConversations, getMyBookings, sendMessage } from '../auth/auth';
+import { approveBooking, createBooking, getConversationMessages, getConversations, getMyBookings, rejectBooking, sendMessage } from '../auth/auth';
 
 const API_BASE_URL = 'https://rental-backend.kudoo-live.workers.dev/api/people';
 
@@ -40,6 +40,10 @@ export function fetchBookingRecords() {
 
 export function approveBookingRecord(bookingId) {
   return approveBooking(bookingId);
+}
+
+export function rejectBookingRecord(bookingId, message) {
+  return rejectBooking(bookingId, message);
 }
 
 export function fetchConversations() {

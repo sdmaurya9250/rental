@@ -1,17 +1,45 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LogOut, Menu, Search } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { getStoredUser, logout } from '../auth/auth';
+import { getMyProfile, getStoredUser, logout } from '../auth/auth';
 
 export default function TopBar({ onMenuToggle }) {
   const navigate = useNavigate();
+
   const [loggingOut, setLoggingOut] = useState(false);
-  const user = getStoredUser();
-  const displayName = user?.fullName || user?.name || user?.username || user?.email?.split('@')[0] || 'My account';
-  const initials = displayName === 'My account' ? 'M' : displayName.charAt(0).toUpperCase();
+
+  const [user, setUser] = useState(() => getStoredUser() || {});
+
+  useEffect(() => {
+    let active = true;
+    const refreshStoredUser = () => setUser(getStoredUser() || {});
+    window.addEventListener('rp-profile-updated', refreshStoredUser);
+    getMyProfile()
+      .then((profile) => { if (active && profile) setUser({ ...(getStoredUser() || {}), ...(profile.profile || profile) }); })
+      .catch(() => {});
+    return () => {
+      active = false;
+      window.removeEventListener('rp-profile-updated', refreshStoredUser);
+    };
+  }, []);
+
+  const displayName =
+    user?.fullName ||
+    user?.full_name ||
+    user?.name ||
+    user?.username ||
+    user?.email?.split('@')[0] ||
+    'My account';
+
+  const initials =
+    displayName === 'My account'
+      ? 'M'
+      : displayName.charAt(0).toUpperCase();
+  const profileImage = user?.image || user?.profile_image || user?.avatar_url || user?.photo || '';
 
   async function handleLogout() {
     setLoggingOut(true);
+
     try {
       await logout();
     } catch {
@@ -22,8 +50,70 @@ export default function TopBar({ onMenuToggle }) {
     }
   }
 
-  return <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#e7e0f5] bg-white/95 px-6 backdrop-blur">
-    <NavLink to="/" className="flex items-center space-x-2 text-[#171426]"><span className="flex -space-x-1"><i className="h-3.5 w-3.5 rounded-full bg-fuchsia-500" /><i className="h-3.5 w-3.5 rounded-full bg-violet-600" /></span><span className="text-xl font-bold">RentPeople</span></NavLink>
-    <div className="flex items-center gap-2 sm:gap-3"><button className="hidden p-2 text-[#5d586e] hover:text-violet-700 sm:block" aria-label="Search"><Search className="h-5 w-5" /></button><div className="hidden text-right sm:block"><p className="max-w-40 truncate text-sm font-medium text-[#171426]">{displayName}</p><p className="text-xs text-[#7d778f]">Member</p></div><span className="hidden h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-fuchsia-500 to-violet-600 text-sm font-bold text-white sm:grid">{initials}</span><button type="button" onClick={handleLogout} disabled={loggingOut} className="inline-flex items-center gap-2 rounded-lg border border-violet-200 px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-60"><LogOut className="h-4 w-4" /><span className="hidden sm:inline">{loggingOut ? 'Logging out…' : 'Logout'}</span></button><button onClick={onMenuToggle} className="rounded-lg p-2 text-[#5d586e] hover:bg-violet-50 lg:hidden" aria-label="Open menu"><Menu className="h-5 w-5" /></button></div>
-  </header>;
+  return (
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/10 bg-[#100d2b]/95 px-6 text-white shadow-sm backdrop-blur">
+      {/* Logo */}
+      <NavLink
+        to="/"
+        className="flex items-center space-x-2 text-white"
+      >
+        <span className="flex -space-x-1">
+          <i className="h-3.5 w-3.5 rounded-full bg-fuchsia-500" />
+          <i className="h-3.5 w-3.5 rounded-full bg-violet-600" />
+        </span>
+
+        <span className="text-xl font-bold">RentPeople</span>
+      </NavLink>
+
+      {/* Right Actions */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Search */}
+        {/* <button
+          type="button"
+          className="hidden p-2 text-violet-100/70 hover:text-fuchsia-300 sm:block"
+          aria-label="Search"
+        >
+          <Search className="h-5 w-5" />
+        </button> */}
+
+        {/* User Info */}
+        <div className="hidden text-right sm:block">
+          <p className="max-w-40 truncate text-sm font-medium text-white">
+            {displayName}
+          </p>
+
+          {/* <p className="text-xs text-violet-200/60">Member</p> */}
+        </div>
+
+        {/* Avatar */}
+        <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-fuchsia-500 to-violet-600 text-sm font-bold text-white">
+          {profileImage ? <img src={profileImage} alt={`${displayName} profile`} className="h-full w-full object-cover" /> : initials}
+        </span>
+
+        {/* Logout */}
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="inline-flex items-center gap-2 rounded-lg border border-violet-300/30 bg-white/5 px-3 py-2 text-sm font-semibold text-violet-100 hover:border-fuchsia-300/50 hover:bg-white/10 hover:text-white disabled:opacity-60"
+        >
+          <LogOut className="h-4 w-4" />
+
+          <span className="hidden sm:inline">
+            {loggingOut ? 'Logging out…' : 'Logout'}
+          </span>
+        </button>
+
+        {/* Mobile Menu */}
+        <button
+          type="button"
+          onClick={onMenuToggle}
+          className="rounded-lg p-2 text-violet-100/80 hover:bg-white/10 hover:text-white lg:hidden"
+          aria-label="Open menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      </div>
+    </header>
+  );
 }

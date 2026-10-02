@@ -18,18 +18,18 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
   const allCategories = [
     { to: '/', label: 'Home', icon: LayoutGrid, end: true },
     { to: '/browse', label: 'Browse people', icon: Users },
-    { to: '/search', label: 'Search people', icon: Search },
+    // { to: '/search', label: 'Search people', icon: Search },
     { to: '/bookings', label: 'My bookings', icon: CalendarDays },
     { to: '/favorites', label: 'Favorites', icon: Heart },
     { to: '/messages', label: 'Messages', icon: MessageCircle },
     { to: '/my-profile', label: 'My profile', icon: UserRound },
-    { to: '/date-companion', label: 'Date companion', icon: Heart },
-    { to: '/travel-buddy', label: 'Travel buddy', icon: Plane },
-    { to: '/event-partner', label: 'Event partner', icon: Users },
-    { to: '/conversation', label: 'Conversation partner', icon: MessageSquare },
-    { to: '/fitness', label: 'Fitness buddy', icon: Activity },
-    { to: '/networking', label: 'Professional networking', icon: Briefcase },
-    { to: '/photoshoot', label: 'Photoshoot partner', icon: Camera },
+    // { to: '/date-companion', label: 'Date companion', icon: Heart },
+    // { to: '/travel-buddy', label: 'Travel buddy', icon: Plane },
+    // { to: '/event-partner', label: 'Event partner', icon: Users },
+    // { to: '/conversation', label: 'Conversation partner', icon: MessageSquare },
+    // { to: '/fitness', label: 'Fitness buddy', icon: Activity },
+    // { to: '/networking', label: 'Professional networking', icon: Briefcase },
+    // { to: '/photoshoot', label: 'Photoshoot partner', icon: Camera },
     // { to: '/gaming', label: 'Gaming buddy', icon: Gamepad2 },
     // { to: '/other', label: 'Other', icon: MoreHorizontal },
   ];
@@ -53,10 +53,16 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
         : allCategories;
 
   return (
-    <aside className={`fixed inset-y-0 left-0 z-50 w-72 overflow-y-auto bg-white border-r border-[#e7e0f5] p-5 shadow-xl transition-transform duration-200 lg:static lg:z-auto lg:w-64 lg:min-w-[256px] lg:translate-x-0 lg:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-      <div className="mb-4 flex items-center justify-between lg:block"><h3 className="px-2 text-xs font-semibold uppercase tracking-wider text-[#8b849d]">Navigation</h3><button onClick={onNavigate} className="rounded-lg p-2 text-[#5d586e] hover:bg-violet-50 lg:hidden" aria-label="Close menu"><X className="h-5 w-5" /></button></div>
+    <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col overflow-y-auto border-r border-violet-950 bg-[#100d2b] p-4 text-white shadow-xl transition-transform duration-200 lg:static lg:z-auto lg:w-64 lg:min-w-[256px] lg:translate-x-0 lg:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className="mb-5 flex items-center justify-between border-b border-white/10 px-1 pb-4">
+        <NavLink to="/" onClick={onNavigate} className="flex items-center gap-2.5">
+          <span className="relative flex h-8 w-8 items-center justify-center text-xl font-black text-fuchsia-400">♥<span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-violet-400" /></span>
+          <span><span className="block text-sm font-extrabold tracking-wide text-white">RentPeople</span><span className="block text-[9px] tracking-wide text-violet-200/60">Meet · Connect · Rent</span></span>
+        </NavLink>
+        <button onClick={onNavigate} className="rounded-lg p-2 text-violet-100/70 hover:bg-white/10 lg:hidden" aria-label="Close menu"><X className="h-5 w-5" /></button>
+      </div>
 
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         {categories.map((cat) => {
           const Icon = cat.icon;
           return (
@@ -67,16 +73,24 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
               onClick={onNavigate}
               className={({ isActive }) => `w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition duration-150 ${
                 isActive
-                  ? 'bg-gradient-to-r from-fuchsia-100 to-violet-100 text-violet-700 border border-violet-100'
-                  : 'text-[#5d586e] hover:text-violet-700 hover:bg-[#f6f2ff]'
+                  ? 'bg-gradient-to-r from-violet-700 via-purple-600 to-fuchsia-500 text-white shadow-lg shadow-fuchsia-950/30'
+                  : 'text-violet-100/75 hover:bg-white/10 hover:text-white'
               }`}
             >
-              {({ isActive }) => <><Icon className={`w-4 h-4 ${isActive ? 'text-violet-700' : 'text-[#7d778f]'}`} />
+              {({ isActive }) => <><Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-violet-200/70'}`} />
               <span className="truncate">{cat.label}</span>
               </>}
             </NavLink>
           );
         })}
+      </div>
+
+      <div className="mt-auto pt-6">
+        <div className="rounded-2xl border border-amber-300/25 bg-gradient-to-br from-amber-500/15 via-fuchsia-500/10 to-violet-500/20 p-3.5 shadow-lg shadow-black/10">
+          <p className="flex items-center gap-2 text-xs font-bold text-amber-200"><span aria-hidden="true">♛</span> Upgrade to Pro</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-violet-100/70">Get more visibility and premium features.</p>
+          <span className="mt-3 block rounded-lg bg-gradient-to-r from-orange-400 via-pink-500 to-violet-500 px-3 py-2 text-center text-xs font-bold text-white shadow-md shadow-fuchsia-950/30">Upgrade Now</span>
+        </div>
       </div>
     </aside>
   );

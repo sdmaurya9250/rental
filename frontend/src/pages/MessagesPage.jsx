@@ -1,6 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Send } from 'lucide-react';
+// import { 
+//   Send, 
+//   Search, 
+//   SlidersHorizontal, 
+//   Video, 
+//   Phone, 
+//   MoreVertical, 
+//   Plus, 
+//   Smile, 
+//   Paperclip, 
+//   Image as ImageIcon,
+//   CheckCheck
+// } from 'lucide-[#e7e1f2]'; // Adjust icon import path if needed
+import { Send, Search, SlidersHorizontal, Video, Phone, MoreVertical, Plus, Smile, Paperclip, Image as ImageIcon, CheckCheck } from 'lucide-react';
 import FeaturePage from '../components/FeaturePage';
 import { getStoredUser, isAuthenticated } from '../auth/auth';
 import { fetchConversationMessages, fetchConversations, sendChatMessage } from './finderApi';
@@ -40,6 +53,7 @@ export default function MessagesPage() {
   const [selectedUserId, setSelectedUserId] = useState(requestedUserId);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [loadingInbox, setLoadingInbox] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
@@ -78,6 +92,12 @@ export default function MessagesPage() {
     return () => { active = false; };
   }, [selectedUserId]);
 
+  const filteredConversations = useMemo(() => {
+    return conversations.filter((item) =>
+      conversationName(item).toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [conversations, searchQuery]);
+
   const selectedConversation = useMemo(
     () => conversations.find((item) => conversationUserId(item) === selectedUserId),
     [conversations, selectedUserId],
@@ -101,6 +121,7 @@ export default function MessagesPage() {
         ...(sent && typeof sent === 'object' ? sent : {}),
         content: messageContent(sent) || content,
         sender_id: sent?.sender_id || currentUserId,
+        created_at: sent?.created_at || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         is_mine: true,
       }]);
       setDraft('');
@@ -112,59 +133,265 @@ export default function MessagesPage() {
   }
 
   if (!isAuthenticated()) {
-    return <FeaturePage title="Messages" subtitle="Finders and RentPeople can chat here."><p className="text-sm text-amber-700">{error} <Link to="/login" className="font-semibold underline">Sign in</Link></p></FeaturePage>;
+    return (
+      <FeaturePage title="Messages" subtitle="Finders and RentPeople can chat here.">
+        <p className="text-sm text-amber-700">
+          {error} <Link to="/login" className="font-semibold underline">Sign in</Link>
+        </p>
+      </FeaturePage>
+    );
   }
 
   return (
     <FeaturePage title="Messages" subtitle="Finders and RentPeople can chat with each other here.">
-      <div className="grid max-w-5xl overflow-hidden rounded-2xl border border-[#e7e1f2] bg-white shadow-sm md:grid-cols-[280px_1fr]">
-        <aside className="border-b border-[#eeeaf5] md:border-b-0 md:border-r">
-          <h2 className="border-b border-[#eeeaf5] px-4 py-3 text-sm font-bold">Conversations</h2>
-          {loadingInbox ? <p className="p-4 text-sm text-[#706a80]">Loading conversations…</p> : conversations.length === 0 ? (
-            <p className="p-4 text-sm text-[#706a80]">No conversations yet.</p>
-          ) : conversations.map((conversation, index) => {
-            const userId = conversationUserId(conversation);
-            const name = conversationName(conversation);
-            const participant = conversation.other_user || conversation.participant || conversation.user || conversation;
-            return <button key={userId || index} type="button" onClick={() => { setError(''); setSelectedUserId(userId); }} className={`flex w-full items-center gap-3 border-b border-[#f1edf7] px-4 py-3 text-left hover:bg-violet-50 ${selectedUserId === userId ? 'bg-violet-50' : ''}`}>
-              <img src={personImage(participant) || `https://i.pravatar.cc/100?u=${encodeURIComponent(userId || name)}`} alt={name} className="h-10 w-10 shrink-0 rounded-full object-cover" />
-              <span className="min-w-0"><span className="block truncate font-semibold text-[#24202e]">{name}</span>
-              <span className="mt-1 block truncate text-xs text-[#706a80]">{conversation.last_message?.content || conversation.last_message || conversation.latest_message || ''}</span></span>
-            </button>;
-          })}
+      <div className="grid h-[750px] max-w-6xl overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xl shadow-slate-100/50 md:grid-cols-[340px_1fr]">
+        
+        {/* Left Sidebar */}
+        <aside className="flex flex-col border-b border-slate-100 md:border-b-0 md:border-r">
+          {/* Search Header */}
+          <div className="p-4">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search conversations..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full rounded-xl bg-slate-50 py-2.5 pl-10 pr-4 text-xs font-medium text-slate-700 placeholder-slate-400 outline-none transition focus:bg-slate-100"
+                />
+              </div>
+              <button 
+                type="button" 
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-500 hover:bg-slate-100"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Conversation List */}
+          <div className="flex-1 overflow-y-auto">
+            {loadingInbox ? (
+              <p className="p-4 text-center text-xs text-slate-400">Loading conversations…</p>
+            ) : filteredConversations.length === 0 ? (
+              <p className="p-4 text-center text-xs text-slate-400">No conversations found.</p>
+            ) : (
+              filteredConversations.map((conversation, index) => {
+                const userId = conversationUserId(conversation);
+                const name = conversationName(conversation);
+                const participant = conversation.other_user || conversation.participant || conversation.user || conversation;
+                const isSelected = selectedUserId === userId;
+                const unreadCount = conversation.unread_count || conversation.unread || 0;
+                const time = conversation.time || conversation.last_message_time || '10:24 AM';
+
+                return (
+                  <button
+                    key={userId || index}
+                    type="button"
+                    onClick={() => {
+                      setError('');
+                      setSelectedUserId(userId);
+                    }}
+                    className={`relative flex w-full items-center gap-3.5 px-4 py-3.5 text-left transition ${
+                      isSelected ? 'bg-violet-50/60' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    {/* Active Left Indicator Line */}
+                    {isSelected && (
+                      <span className="absolute left-0 top-0 bottom-0 w-1 rounded-r-full bg-violet-600" />
+                    )}
+
+                    {/* Avatar with Status Badge */}
+                    <div className="relative shrink-0">
+                      <img
+                        src={personImage(participant) || `https://i.pravatar.cc/100?u=${encodeURIComponent(userId || name)}`}
+                        alt={name}
+                        className="h-11 w-11 rounded-full object-cover"
+                      />
+                      <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
+                    </div>
+
+                    {/* User Info & Message Preview */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <h3 className="truncate text-sm font-semibold text-slate-800">{name}</h3>
+                        <span className="text-[11px] font-medium text-slate-400">{time}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-2">
+                        <p className="truncate text-xs text-slate-500">
+                          {conversation.last_message?.content || conversation.last_message || conversation.latest_message || 'Hey! Looking forward to it 😊'}
+                        </p>
+                        {unreadCount > 0 && (
+                          <span className="flex h-4 min-w-[16px] shrink-0 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+                            {unreadCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
         </aside>
 
-        <section className="flex min-h-[420px] flex-col">
-          {selectedUserId ? <>
-            <header className="border-b border-[#eeeaf5] p-4">
-              <div className="flex items-center gap-3">
-                <img src={partnerImage || 'https://i.pravatar.cc/100?img=1'} alt={partnerName} className="h-10 w-10 rounded-full object-cover" />
-                <div><h2 className="font-bold">{partnerName}</h2><p className="text-xs text-[#706a80]">Chat participant</p></div>
-              </div>
-            </header>
-            <div className="flex-1 space-y-3 overflow-y-auto p-4">
-              {loadingMessages ? <p className="text-sm text-[#706a80]">Loading messages…</p> : messages.length === 0 ? <p className="text-sm text-[#706a80]">Start the conversation.</p> : messages.map((item, index) => {
-                const senderId = String(item.sender_id || item.sender?.id || item.from_user_id || '');
-                const mine = item.is_mine ?? item.is_sender ?? (senderId && currentUserId ? senderId === currentUserId : false);
-                const senderName = mine ? currentUserName : item.sender?.name || item.sender_name || item.from_user?.name || partnerName;
-                const senderImage = mine ? currentUserImage : personImage(item.sender) || item.sender_image || personImage(item.from_user) || partnerImage;
-                return <div key={item.id || `${index}-${messageContent(item)}`} className={`flex max-w-[90%] items-end gap-2 ${mine ? 'ml-auto flex-row-reverse' : ''}`}>
-                  <img src={senderImage || `https://i.pravatar.cc/100?u=${encodeURIComponent(senderId || selectedUserId)}`} alt={senderName} className="h-8 w-8 shrink-0 rounded-full object-cover" />
-                  <div className={mine ? 'text-right' : ''}>
-                    <p className="mb-1 px-1 text-[11px] text-[#706a80]">{senderName}</p>
-                    <p className={`w-fit max-w-full rounded-xl px-4 py-2 text-left text-sm ${mine ? 'ml-auto bg-violet-600 text-white' : 'bg-violet-50 text-[#3d354c]'}`}>{messageContent(item)}</p>
+        {/* Right Section: Chat Panel */}
+        <section className="flex flex-col bg-slate-50/30">
+          {selectedUserId ? (
+            <>
+              {/* Header */}
+              <header className="flex items-center justify-between border-b border-slate-100 bg-white px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <img
+                      src={partnerImage || 'https://i.pravatar.cc/100?img=1'}
+                      alt={partnerName}
+                      className="h-10 w-10 rounded-full object-cover"
+                    />
+                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
                   </div>
-                </div>;
-              })}
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-800">{partnerName}</h2>
+                    <p className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-600">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Online now
+                    </p>
+                  </div>
+                </div>
+
+                {/* Call & Action Controls */}
+                {/* <div className="flex items-center gap-1 text-slate-400">
+                  <button type="button" className="rounded-xl p-2.5 hover:bg-slate-100 hover:text-slate-600">
+                    <Video className="h-4 w-4" />
+                  </button>
+                  <button type="button" className="rounded-xl p-2.5 hover:bg-slate-100 hover:text-slate-600">
+                    <Phone className="h-4 w-4" />
+                  </button>
+                  <button type="button" className="rounded-xl p-2.5 hover:bg-slate-100 hover:text-slate-600">
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                </div> */}
+              </header>
+
+              {/* Chat Thread */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {/* Date Divider */}
+                <div className="my-2 flex justify-center">
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium text-slate-400">
+                    Today
+                  </span>
+                </div>
+
+                {loadingMessages ? (
+                  <p className="text-center text-xs text-slate-400">Loading messages…</p>
+                ) : messages.length === 0 ? (
+                  <p className="text-center text-xs text-slate-400">Start the conversation.</p>
+                ) : (
+                  messages.map((item, index) => {
+                    const senderId = String(item.sender_id || item.sender?.id || item.from_user_id || '');
+                    const mine = item.is_mine ?? item.is_sender ?? (senderId && currentUserId ? senderId === currentUserId : false);
+                    const senderName = mine ? currentUserName : item.sender?.name || item.sender_name || partnerName;
+                    const senderImage = mine ? currentUserImage : personImage(item.sender) || partnerImage;
+                    const time = item.created_at || '10:20 AM';
+
+                    return (
+                      <div
+                        key={item.id || `${index}-${messageContent(item)}`}
+                        className={`flex items-end gap-2.5 ${mine ? 'justify-end' : 'justify-start'}`}
+                      >
+                        {/* Avatar for Incoming Messages */}
+                        {!mine && (
+                          <img
+                            src={senderImage || `https://i.pravatar.cc/100?u=${encodeURIComponent(senderId || selectedUserId)}`}
+                            alt={senderName}
+                            className="h-7 w-7 rounded-full object-cover"
+                          />
+                        )}
+
+                        {/* Message Bubble Container */}
+                        <div className={`flex items-end gap-2 max-w-[70%] ${mine ? 'flex-row-reverse' : 'flex-row'}`}>
+                          <div
+                            className={`rounded-2xl px-4 py-2.5 text-xs font-normal leading-relaxed ${
+                              mine
+                                ? 'bg-violet-600 text-white rounded-br-none shadow-md shadow-violet-200'
+                                : 'bg-slate-100 text-slate-700 rounded-bl-none'
+                            }`}
+                          >
+                            {messageContent(item)}
+                          </div>
+
+                          {/* Time & Read Status */}
+                          <div className="flex items-center gap-1 shrink-0 pb-1 text-[10px] text-slate-400">
+                            <span>{time}</span>
+                            {mine && <CheckCheck className="h-3 w-3 text-violet-400" />}
+                          </div>
+                        </div>
+
+                        {/* Avatar for Outgoing Messages */}
+                        {mine && (
+                          <img
+                            src={senderImage || `https://i.pravatar.cc/100?u=${encodeURIComponent(currentUserId)}`}
+                            alt={senderName}
+                            className="h-7 w-7 rounded-full object-cover"
+                          />
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Message Input Box */}
+              <div className="p-4 bg-white border-t border-slate-100">
+                <form onSubmit={submitMessage} className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+
+                  <div className="relative flex flex-1 items-center">
+                    <input
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      placeholder="Type a message..."
+                      className="w-full rounded-2xl bg-slate-50 py-2.5 pl-4 pr-24 text-xs text-slate-700 placeholder-slate-400 outline-none transition focus:bg-slate-100"
+                    />
+
+                    {/* Action icons in input */}
+                    <div className="absolute right-3 flex items-center gap-2 text-slate-400">
+                      <button type="button" className="hover:text-slate-600">
+                        <Smile className="h-4 w-4" />
+                      </button>
+                      <button type="button" className="hover:text-slate-600">
+                        <Paperclip className="h-4 w-4" />
+                      </button>
+                      <button type="button" className="hover:text-slate-600">
+                        <ImageIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={sending || !draft.trim()}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 text-white shadow-md shadow-violet-200 transition hover:bg-violet-700 disabled:opacity-50"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                </form>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-slate-400">
+              Select a conversation to start chatting.
             </div>
-            <form onSubmit={submitMessage} className="flex gap-2 border-t border-[#eeeaf5] p-3">
-              <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Type a message…" className="min-w-0 flex-1 rounded-lg bg-[#f8f6ff] px-3 py-2 text-sm outline-none ring-violet-300 focus:ring-2" />
-              <button type="submit" disabled={sending || !draft.trim()} aria-label="Send message" className="rounded-lg bg-violet-600 p-2 text-white disabled:opacity-50"><Send className="h-4 w-4" /></button>
-            </form>
-          </> : <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-[#706a80]">Choose a conversation to start chatting.</div>}
+          )}
         </section>
       </div>
-      {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+
+      {error && <p role="alert" className="mt-3 text-center text-xs font-medium text-rose-500">{error}</p>}
     </FeaturePage>
   );
 }
