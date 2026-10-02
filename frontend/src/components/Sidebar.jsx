@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  LayoutGrid, CalendarDays, Search, MessageCircle, UserRound,
+  LayoutGrid, CalendarDays, Search, MessageCircle, UserRound, Wallet,
   Heart,
   Plane,
   Users,
@@ -9,12 +9,14 @@ import {
   Briefcase,
   Camera,
   Gamepad2,
-  MoreHorizontal, X, UserPlus
+  MoreHorizontal, X, UserPlus, LogOut
 } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
-import { getStoredUser } from '../auth/auth';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { getStoredUser, logout } from '../auth/auth';
 
 export default function Sidebar({ mobileOpen, onNavigate }) {
+  const navigate = useNavigate();
+  const [loggingOut, setLoggingOut] = useState(false);
   const allCategories = [
     { to: '/dashboard', label: 'Home', icon: LayoutGrid, end: true },
     { to: '/browse', label: 'Browse people', icon: Users },
@@ -22,6 +24,7 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
     { to: '/bookings', label: 'My bookings', icon: CalendarDays },
     { to: '/favorites', label: 'Favorites', icon: Heart },
     { to: '/messages', label: 'Messages', icon: MessageCircle },
+    { to: '/wallet', label: 'Wallet', icon: Wallet },
     { to: '/my-profile', label: 'My profile', icon: UserRound },
     // { to: '/date-companion', label: 'Date companion', icon: Heart },
     // { to: '/travel-buddy', label: 'Travel buddy', icon: Plane },
@@ -42,6 +45,7 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
     { to: '/my-profile', label: 'Become', icon: UserPlus },
     { to: '/bookings', label: 'My bookings', icon: CalendarDays },
     { to: '/messages', label: 'Messages', icon: MessageCircle },
+    { to: '/wallet', label: 'Wallet', icon: Wallet },
     { to: '/my-profile', label: 'My profile', icon: UserRound },
   ];
   const categories = isBecomeRole
@@ -51,6 +55,14 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
       : isBothRole
         ? [...allCategories, roleCategories[0]]
         : allCategories;
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try { await logout(); } catch { /* The local session is cleared even if no logout route exists. */ }
+    navigate('/login', { replace: true });
+    onNavigate?.();
+    setLoggingOut(false);
+  }
 
   return (
     <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col overflow-y-auto border-r border-violet-950 bg-[#100d2b] p-4 text-white shadow-xl transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-60 lg:min-w-[240px] lg:shrink-0 lg:translate-x-0 lg:shadow-none xl:w-64 xl:min-w-[256px] ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -84,14 +96,18 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
           );
         })}
       </div>
-
+      <button type="button" onClick={handleLogout} disabled={loggingOut} className="mt-auto flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-violet-100/75 transition hover:bg-white/10 hover:text-white disabled:opacity-60">
+        <LogOut className="h-4 w-4 text-violet-200/70" />
+        <span>{loggingOut ? 'Logging out…' : 'Logout'}</span>
+      </button>
+{/* 
       <div className="mt-auto pt-6">
         <div className="rounded-2xl border border-amber-300/25 bg-gradient-to-br from-amber-500/15 via-fuchsia-500/10 to-violet-500/20 p-3.5 shadow-lg shadow-black/10">
           <p className="flex items-center gap-2 text-xs font-bold text-amber-200"><span aria-hidden="true">♛</span> Upgrade to Pro</p>
           <p className="mt-1 text-[10px] leading-relaxed text-violet-100/70">Get more visibility and premium features.</p>
           <span className="mt-3 block rounded-lg bg-gradient-to-r from-orange-400 via-pink-500 to-violet-500 px-3 py-2 text-center text-xs font-bold text-white shadow-md shadow-fuchsia-950/30">Upgrade Now</span>
         </div>
-      </div>
+      </div> */}
     </aside>
   );
 }

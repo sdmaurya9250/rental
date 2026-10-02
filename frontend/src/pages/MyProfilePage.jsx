@@ -1,9 +1,9 @@
-import { Camera, ChevronDown, Plus, Save, X } from 'lucide-react';
+import { Camera, ChevronDown, MapPin, Plus, Save, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FeaturePage from '../components/FeaturePage';
 import { getMyProfile, getStoredUser, isAuthenticated, updateMyProfile } from '../auth/auth';
-import { fetchPeople } from './finderApi';
+import { fetchPeople, getCurrentLocation, reverseGeocode } from './finderApi';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -45,6 +45,8 @@ const defaultProfile = {
   email: '',
   phone: '',
   city: '',
+  lat: null,
+  lng: null,
   gender: 'Other',
   bio: '',
   image: '',
@@ -89,6 +91,8 @@ function mapApiProfile(data, user = {}) {
     email: data.email || user.email || '',
     phone: data.phone || user.mobile || '',
     city: data.city || user.city || '',
+    lat: data.lat != null && Number.isFinite(Number(data.lat)) ? Number(data.lat) : null,
+    lng: data.lng != null && Number.isFinite(Number(data.lng)) ? Number(data.lng) : null,
     gender: gender === 'male' ? 'Male' : gender === 'female' ? 'Female' : 'Other',
     price: Number(data.price) || 0,
     bio: data.bio || '',
@@ -183,6 +187,7 @@ export default function MyProfilePage() {
   const [serviceDraft, setServiceDraft] = useState({ name: '', price: '' });
   const [cityOptions, setCityOptions] = useState(SUGGESTED_CITIES);
   const [customCityMode, setCustomCityMode] = useState(false);
+  const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -242,6 +247,27 @@ export default function MyProfilePage() {
   }, [navigate]);
 
   const updateField = (event) => setProfile({ ...profile, [event.target.name]: event.target.value });
+
+  const useCurrentLocation = async () => {
+    setLocating(true);
+    setErrorMsg('');
+    try {
+      const coordinates = await getCurrentLocation();
+      let city = profile.city;
+      try {
+        const place = await reverseGeocode(coordinates);
+        city = place.city || city;
+      } catch {
+        // Coordinates can still be saved when the optional reverse lookup is unavailable.
+      }
+      setProfile((current) => ({ ...current, ...coordinates, city }));
+      if (city) setCustomCityMode(true);
+    } catch (error) {
+      setErrorMsg(error.message || 'Unable to get your location.');
+    } finally {
+      setLocating(false);
+    }
+  };
 
   const uploadImage = (event) => {
     const file = event.target.files?.[0];
@@ -337,6 +363,8 @@ export default function MyProfilePage() {
         fullName: profile.fullName,
         phone: profile.phone,
         city: profile.city,
+        lat: profile.lat,
+        lng: profile.lng,
         gender: profile.gender,
         price: profile.price,
         bio: profile.bio,
@@ -424,6 +452,11 @@ export default function MyProfilePage() {
                 </select>
                 {customCityMode && <input name="city" value={profile.city} onChange={updateField} placeholder="Enter your city or area" className="mt-2 w-full rounded-lg border border-[#e4dff0] px-3 py-2.5 text-sm font-normal outline-none focus:ring-2 focus:ring-violet-300" />}
                 <span className="mt-1 block text-xs font-normal text-[#827b95]">Suggestions include cities where RentPeople are available.</span>
+                <div className="mt-3">
+                  <button type="button" onClick={useCurrentLocation} disabled={locating} className="inline-flex items-center gap-2 rounded-lg border border-violet-200 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-60"><MapPin className="h-3.5 w-3.5" />{locating ? 'Finding location…' : profile.lat != null && profile.lng != null ? 'Update current location' : 'Use my current location'}</button>
+                  {profile.lat != null && profile.lng != null && <span className="ml-2 text-xs font-normal text-[#827b95]">Coordinates ready to save</span>}
+                  <span className="mt-1 block text-xs font-normal text-[#827b95]">Your location helps Find a RentPeople users discover nearby providers. Browser permission is required.</span>
+                </div>
               </label>
               <label className="block text-sm font-semibold text-[#40394f]">
                 Gender

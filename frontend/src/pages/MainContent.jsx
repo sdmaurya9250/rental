@@ -1,35 +1,99 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Heart, MapPin, ChevronDown } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { fetchPeople, formatPersonPrice, getPersonPrice } from './finderApi';
+import { Link, useSearchParams } from 'react-router-dom';
+import { fetchPeople, formatPersonPrice, getCurrentLocation, getPersonPrice } from './finderApi';
+
+function distanceKm(from, person) {
+  const rawLat = person.lat ?? person.latitude;
+  const rawLng = person.lng ?? person.longitude;
+  if (rawLat == null || rawLng == null || rawLat === '' || rawLng === '') return null;
+  const lat = Number(rawLat);
+  const lng = Number(rawLng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const radians = (degrees) => degrees * Math.PI / 180;
+  const latDelta = radians(lat - from.lat);
+  const lngDelta = radians(lng - from.lng);
+  const a = Math.sin(latDelta / 2) ** 2
+    + Math.cos(radians(from.lat)) * Math.cos(radians(lat)) * Math.sin(lngDelta / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+async function fetchNearbyDirectory(coordinates) {
+  const [nearby, allPeople] = await Promise.all([
+    fetchPeople({ ...coordinates, radius_km: 500 }),
+    fetchPeople(),
+  ]);
+  const allById = new Map(allPeople.map((person) => [String(person.id), person]));
+  const nearbyIds = new Set(nearby.map((person) => String(person.id)));
+  const orderedPeople = [...nearby, ...allPeople.filter((person) => !nearbyIds.has(String(person.id)))];
+  return orderedPeople
+    .map((person) => {
+      const mergedPerson = { ...(allById.get(String(person.id)) || {}), ...person };
+      const distance = distanceKm(coordinates, mergedPerson);
+      return distance == null ? mergedPerson : { ...mergedPerson, distance_km: distance };
+    })
+    .sort((a, b) => Number(a.distance_km ?? Infinity) - Number(b.distance_km ?? Infinity));
+}
 
 export default function MainContent() {
+  const [searchParams] = useSearchParams();
   const [favorites, setFavorites] = useState({});
   const [cityFilter, setCityFilter] = useState('All');
   const [sortBy, setSortBy] = useState('Popular');
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [nearMe, setNearMe] = useState(false);
+  const [findingLocation, setFindingLocation] = useState(false);
+  const [nearMeError, setNearMeError] = useState('');
 
   useEffect(() => {
     let active = true;
-    fetchPeople()
-      .then((results) => { if (active) setPeople(results); })
+    const mode = searchParams.get('mode');
+    const city = searchParams.get('city');
+    const lat = Number(searchParams.get('lat'));
+    const lng = Number(searchParams.get('lng'));
+    const hasCoordinates = searchParams.has('lat') && searchParams.has('lng') && Number.isFinite(lat) && Number.isFinite(lng);
+    setLoading(true);
+    setLoadError('');
+    setNearMeError('');
+    const load = mode === 'near' && hasCoordinates
+      ? fetchNearbyDirectory({ lat, lng })
+      : city ? fetchPeople({ city }) : fetchPeople();
+    load
+      .then((results) => { if (active) { setPeople(results); setNearMe(mode === 'near' && hasCoordinates); setCityFilter('All'); } })
       .catch((error) => { if (active) setLoadError(error.message || 'Unable to load people.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [searchParams]);
 
   const cities = useMemo(() => [...new Set(people.map((person) => person.location).filter(Boolean))].sort(), [people]);
   const visiblePeople = useMemo(() => {
     const results = people.filter((person) => cityFilter === 'All' || person.location === cityFilter);
+    if (nearMe && sortBy === 'Popular') results.sort((a, b) => Number(a.distance_km ?? Infinity) - Number(b.distance_km ?? Infinity));
     if (sortBy === 'PriceLow') results.sort((a, b) => getPersonPrice(a) - getPersonPrice(b));
     if (sortBy === 'PriceHigh') results.sort((a, b) => getPersonPrice(b) - getPersonPrice(a));
     return results;
-  }, [people, cityFilter, sortBy]);
+  }, [people, cityFilter, sortBy, nearMe]);
 
   const toggleFavorite = (id) => {
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const findNearbyPeople = async () => {
+    setFindingLocation(true);
+    setNearMeError('');
+    try {
+      const { lat, lng } = await getCurrentLocation();
+      const locatedResults = await fetchNearbyDirectory({ lat, lng });
+      setPeople(locatedResults);
+      setCityFilter('All');
+      setNearMe(true);
+    } catch (error) {
+      setNearMeError(error.message || 'Unable to find nearby people.');
+    } finally {
+      setFindingLocation(false);
+    }
   };
 
   return (
@@ -47,6 +111,7 @@ export default function MainContent() {
 
         {/* Filter Dropdowns */}
         <div className="flex items-center space-x-3">
+          <button type="button" onClick={findNearbyPeople} disabled={findingLocation} className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700 shadow-sm hover:bg-violet-50 disabled:opacity-60"><MapPin className="h-3.5 w-3.5" />{findingLocation ? 'Finding you…' : nearMe ? 'Refresh nearby' : 'Near me'}</button>
           {/* Location Select */}
           <div className="relative">
             <div className="flex items-center bg-white border border-[#e4dff0] rounded-xl px-3 py-2 text-xs text-[#40394f] shadow-sm">
@@ -81,6 +146,7 @@ export default function MainContent() {
           </div>
         </div>
       </div>
+      {nearMeError && <p role="alert" className="-mt-5 mb-5 text-sm text-rose-700">{nearMeError}</p>}
 
       {/* Profile Cards Grid */}
       {loading && <p role="status" className="py-12 text-center text-sm text-[#706a80]">Loading people…</p>}
@@ -135,7 +201,7 @@ export default function MainContent() {
                   {/* Location */}
                   <p className="text-xs text-[#706a80] flex items-center mb-3">
                     <MapPin className="w-3 h-3 text-gray-500 mr-1" />
-                    {person.location}
+                    {person.location || person.city}{person.distance_km != null && <span className="ml-1 font-medium text-violet-700">· {Number(person.distance_km).toFixed(1)} km</span>}
                   </p>
 
                   {/* Price */}
