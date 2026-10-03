@@ -11,6 +11,7 @@ import ProfilePage from './pages/ProfilePage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import MyProfilePage from './pages/MyProfilePage';
 import DashboardPage from './pages/DashboardPage';
+import WalletPage from './pages/WalletPage';
 import { isAuthenticated } from './auth/auth';
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
           <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/my-profile" element={<MyProfilePage />} />
+          <Route path="/wallet" element={<WalletPage />} />
           <Route path="/date-companion" element={<DateCompanionPage />} />
           <Route path="/travel-buddy" element={<TravelBuddyPage />} />
           <Route path="/event-partner" element={<EventPartnerPage />} />
