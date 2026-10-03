@@ -18,6 +18,14 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class FeedRequest(BaseModel):
+    lat: float
+    lng: float
+    city: Optional[str] = None
+    user_id: Optional[str] = None
+    radius_km: Optional[float] = None  # optional — if None, no hard radius cut (still sorted by distance)
+
+
 class UserResponse(BaseModel):
     id: str
     email: str
