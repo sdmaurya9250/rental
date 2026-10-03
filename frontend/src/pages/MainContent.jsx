@@ -19,18 +19,13 @@ function distanceKm(from, person) {
 }
 
 async function fetchNearbyDirectory(coordinates) {
-  const [nearby, allPeople] = await Promise.all([
-    fetchPeople({ ...coordinates, radius_km: 500 }),
-    fetchPeople(),
-  ]);
-  const allById = new Map(allPeople.map((person) => [String(person.id), person]));
-  const nearbyIds = new Set(nearby.map((person) => String(person.id)));
-  const orderedPeople = [...nearby, ...allPeople.filter((person) => !nearbyIds.has(String(person.id)))];
-  return orderedPeople
+  const nearbyPeople = await fetchPeople({ ...coordinates, radius_km: 500 });
+  return nearbyPeople
     .map((person) => {
-      const mergedPerson = { ...(allById.get(String(person.id)) || {}), ...person };
-      const distance = distanceKm(coordinates, mergedPerson);
-      return distance == null ? mergedPerson : { ...mergedPerson, distance_km: distance };
+      const distance = distanceKm(coordinates, person);
+      return person.distance_km != null || distance == null
+        ? person
+        : { ...person, distance_km: distance };
     })
     .sort((a, b) => Number(a.distance_km ?? Infinity) - Number(b.distance_km ?? Infinity));
 }
