@@ -1,11 +1,19 @@
+import { useState } from 'react';
 import { Heart } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import AuthModal from './AuthModal';
 
 const SERVICE_LINKS = ['Movie Partner', 'In-Person Meeting', 'Elder Care', 'Hangingout'];
 
 export default function HomeFooter() {
+  const [authMode, setAuthMode] = useState(null);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const sectionHref = (id) => pathname === '/' ? `#${id}` : `/#${id}`;
+  const handleLogin = (data) => {
+    setAuthMode(null);
+    navigate('/dashboard', { replace: true, state: { user: data?.user } });
+  };
 
   return (
     <footer className="z-10 w-full border-t border-violet-100/60 bg-white">
@@ -38,8 +46,8 @@ export default function HomeFooter() {
         <div>
           <h5 className="mb-3 text-xs font-bold uppercase tracking-wider text-[#16132a]">Account</h5>
           <ul className="space-y-2 text-xs text-gray-500">
-            <li><Link to="/login" className="transition hover:text-violet-600">Login</Link></li>
-            <li><Link to="/login?mode=register" className="transition hover:text-violet-600">Sign Up</Link></li>
+            <li><button type="button" onClick={() => setAuthMode('login')} className="transition hover:text-violet-600">Login</button></li>
+            <li><button type="button" onClick={() => setAuthMode('register')} className="transition hover:text-violet-600">Sign Up</button></li>
             <li><a href="https://t.me" target="_blank" rel="noreferrer" className="transition hover:text-violet-600">Telegram</a></li>
           </ul>
         </div>
@@ -55,6 +63,7 @@ export default function HomeFooter() {
         </div>
       </div>
       <div className="border-t border-violet-100/60 py-4 text-center text-[11px] text-gray-400">© {new Date().getFullYear()} RentCoPartner. All rights reserved.</div>
+      {authMode && <AuthModal isOpen initialMode={authMode} onClose={() => setAuthMode(null)} onLogin={handleLogin} />}
     </footer>
   );
 }

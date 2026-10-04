@@ -1,13 +1,25 @@
 import { useState } from 'react';
 import { Heart, Menu, X } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import AuthModal from './AuthModal';
 
 export default function HomeHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [authMode, setAuthMode] = useState(null);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const isHome = pathname === '/';
   const closeMenu = () => setMenuOpen(false);
   const sectionHref = (id) => isHome ? `#${id}` : `/#${id}`;
+  const openAuth = (mode) => {
+    closeMenu();
+    if (isHome) setAuthMode(mode);
+    else navigate(mode === 'register' ? '/login?mode=register' : '/login');
+  };
+  const handleLogin = (data) => {
+    setAuthMode(null);
+    navigate('/dashboard', { replace: true, state: { user: data?.user } });
+  };
 
   return (
     <nav className="relative z-20 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5">
@@ -24,8 +36,8 @@ export default function HomeHeader() {
       </div>
 
       <div className="hidden items-center space-x-4 md:flex">
-        <Link to="/login" className="px-5 py-2 text-sm font-medium text-pink-600 transition hover:text-pink-700">Login</Link>
-        <Link to="/login?mode=register" className="rounded-full bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-violet-200 transition hover:opacity-95">Sign Up</Link>
+        <button type="button" onClick={() => openAuth('login')} className="px-5 py-2 text-sm font-medium text-pink-600 transition hover:text-pink-700">Login</button>
+        <button type="button" onClick={() => openAuth('register')} className="rounded-full bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-violet-200 transition hover:opacity-95">Sign Up</button>
       </div>
 
       <button type="button" onClick={() => setMenuOpen((open) => !open)} aria-label="Toggle menu" aria-expanded={menuOpen} className="rounded-full border border-violet-100 bg-white p-2.5 text-violet-600 shadow-sm lg:hidden">
@@ -42,11 +54,13 @@ export default function HomeHeader() {
             <a href={sectionHref('how-it-works')} onClick={closeMenu} className="rounded-xl px-4 py-3 text-gray-700 hover:bg-violet-50 hover:text-violet-600">How It Works</a>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-3 border-t border-gray-100 pt-3 md:hidden">
-            <Link to="/login" onClick={closeMenu} className="rounded-full border border-pink-200 px-4 py-2.5 text-center text-sm font-semibold text-pink-600">Login</Link>
-            <Link to="/login?mode=register" onClick={closeMenu} className="rounded-full bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] px-4 py-2.5 text-center text-sm font-semibold text-white">Sign Up</Link>
+            <button type="button" onClick={() => openAuth('login')} className="rounded-full border border-pink-200 px-4 py-2.5 text-center text-sm font-semibold text-pink-600">Login</button>
+            <button type="button" onClick={() => openAuth('register')} className="rounded-full bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] px-4 py-2.5 text-center text-sm font-semibold text-white">Sign Up</button>
           </div>
         </div>
       )}
+
+      {authMode && <AuthModal isOpen initialMode={authMode} onClose={() => setAuthMode(null)} onLogin={handleLogin} />}
     </nav>
   );
 }
