@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
-  Menu, X, ArrowRight, Send, MapPin, Banknote, CalendarDays, Star, Shield,
+  ArrowRight, Send, MapPin, Banknote, CalendarDays, Star, Shield,
   Smartphone, UserPlus, Sparkles, Inbox, Handshake, CircleDollarSign, TrendingUp,
   Clapperboard, Users, HeartHandshake, PartyPopper, ShoppingBag, Stethoscope,
   Home as HomeIcon, Plane, Theater, Dumbbell, Music, Coffee, Utensils,
   MoreHorizontal, Clock, Lock, CheckCircle2, Heart, ChevronRight
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import HomeHeader from '../components/HomeHeader';
+import HomeFooter from '../components/HomeFooter';
 
 /* ---------- Shared layout tokens (change here to affect every section) ---------- */
 // Same left/right spacing for every section
@@ -34,9 +36,6 @@ function SectionHeading({ eyebrow, title, subtitle, className = '' }) {
 }
 
 export default function Home() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const closeMenu = () => setMenuOpen(false);
-
   const quickServices = [
     { icon: <Coffee className="w-5 h-5 text-pink-500" />, label: 'Coffee Partner', bg: 'bg-pink-50' },
     { icon: <Utensils className="w-5 h-5 text-amber-500" />, label: 'Café & Food', bg: 'bg-amber-50' },
@@ -95,57 +94,7 @@ export default function Home() {
       <div className="absolute top-[-5%] left-[-5%] w-[500px] h-[500px] bg-pink-100/40 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-[5%] right-[-5%] w-[550px] h-[550px] bg-violet-200/30 rounded-full blur-3xl pointer-events-none" />
 
-      {/* HEADER (unchanged) */}
-      <nav className="w-full max-w-7xl mx-auto px-6 py-5 flex items-center justify-between z-20 relative">
-        <Link to="/" className="flex items-center space-x-2 shrink-0">
-          <Heart className="w-7 h-7 text-pink-500 fill-pink-500" />
-          <span className="text-2xl font-black tracking-tight text-[#16132a]">
-            Rent<span className="text-[#8a1cf7]">People</span>
-          </span>
-        </Link>
-
-        <div className="hidden lg:flex items-center space-x-7 text-sm font-semibold">
-          <Link to="/" className="text-violet-600 border-b-2 border-violet-600 pb-0.5">Home</Link>
-          <a href="#services" className="text-gray-600 hover:text-violet-600 transition">Services</a>
-          <Link to="/browse" className="text-gray-600 hover:text-violet-600 transition">Browse</Link>
-          <a href="#why-join" className="text-gray-600 hover:text-violet-600 transition">Why Join</a>
-          <a href="#how-it-works" className="text-gray-600 hover:text-violet-600 transition">How It Works</a>
-        </div>
-
-        <div className="hidden md:flex items-center space-x-4">
-          <Link to="/login" className="px-5 py-2 text-sm font-medium text-pink-600 hover:text-pink-700 transition">Login</Link>
-          <Link to="/login?mode=register" className="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] rounded-full hover:opacity-95 transition shadow-md shadow-violet-200">
-            Sign Up
-          </Link>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setMenuOpen((open) => !open)}
-          aria-label="Toggle menu"
-          aria-expanded={menuOpen}
-          className="lg:hidden p-2.5 rounded-full bg-white border border-violet-100 text-violet-600 shadow-sm"
-        >
-          {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
-
-        {/* Mobile menu popup */}
-        {menuOpen && (
-          <div className="lg:hidden absolute top-full left-4 right-4 sm:left-6 sm:right-6 mt-1 bg-white rounded-2xl border border-violet-100 shadow-xl p-3 z-50">
-            <div className="flex flex-col text-sm font-semibold">
-              <Link to="/" onClick={closeMenu} className="px-4 py-3 rounded-xl text-violet-600 bg-violet-50">Home</Link>
-              <a href="#services" onClick={closeMenu} className="px-4 py-3 rounded-xl text-gray-700 hover:bg-violet-50 hover:text-violet-600">Services</a>
-              <Link to="/browse" onClick={closeMenu} className="px-4 py-3 rounded-xl text-gray-700 hover:bg-violet-50 hover:text-violet-600">Browse</Link>
-              <a href="#why-join" onClick={closeMenu} className="px-4 py-3 rounded-xl text-gray-700 hover:bg-violet-50 hover:text-violet-600">Why Join</a>
-              <a href="#how-it-works" onClick={closeMenu} className="px-4 py-3 rounded-xl text-gray-700 hover:bg-violet-50 hover:text-violet-600">How It Works</a>
-            </div>
-            <div className="md:hidden grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-gray-100">
-              <Link to="/login" onClick={closeMenu} className="text-center px-4 py-2.5 rounded-full border border-pink-200 text-pink-600 text-sm font-semibold">Login</Link>
-              <Link to="/login?mode=register" onClick={closeMenu} className="text-center px-4 py-2.5 rounded-full text-white text-sm font-semibold bg-gradient-to-r from-[#8a1cf7] to-[#c800d8]">Sign Up</Link>
-            </div>
-          </div>
-        )}
-      </nav>
+      <HomeHeader />
 
       {/* HERO */}
       <section className={`relative z-10 ${CONTAINER} pt-4 pb-10 lg:pb-12`}>
@@ -414,52 +363,7 @@ export default function Home() {
         <span>Telegram</span>
       </a>
 
-      {/* FOOTER (unchanged) */}
-      <footer className="w-full bg-white border-t border-violet-100/60 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-10 grid grid-cols-2 md:grid-cols-4 gap-8">
-          <div className="col-span-2 md:col-span-1">
-            <div className="flex items-center space-x-2 mb-3">
-              <Heart className="w-6 h-6 text-pink-500 fill-pink-500" />
-              <span className="text-lg font-extrabold text-[#16132a]">RentCoPartner</span>
-            </div>
-            <p className="text-xs text-gray-500 leading-relaxed max-w-xs">
-              Find trusted companions for every occasion, or join and earn on your own terms.
-            </p>
-          </div>
-
-          <div>
-            <h5 className="text-xs font-bold text-[#16132a] uppercase tracking-wider mb-3">Quick Links</h5>
-            <ul className="space-y-2 text-xs text-gray-500">
-              <li><Link to="/" className="hover:text-violet-600 transition">Home</Link></li>
-              <li><Link to="/browse" className="hover:text-violet-600 transition">Browse</Link></li>
-              <li><a href="#why-join" className="hover:text-violet-600 transition">Why Join</a></li>
-              <li><a href="#how-it-works" className="hover:text-violet-600 transition">How It Works</a></li>
-            </ul>
-          </div>
-
-          <div>
-            <h5 className="text-xs font-bold text-[#16132a] uppercase tracking-wider mb-3">Services</h5>
-            <ul className="space-y-2 text-xs text-gray-500">
-              {services.slice(0, 4).map((s, i) => (
-                <li key={i}><a href="#services" className="hover:text-violet-600 transition">{s.title}</a></li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h5 className="text-xs font-bold text-[#16132a] uppercase tracking-wider mb-3">Account</h5>
-            <ul className="space-y-2 text-xs text-gray-500">
-              <li><Link to="/login" className="hover:text-violet-600 transition">Login</Link></li>
-              <li><Link to="/login?mode=register" className="hover:text-violet-600 transition">Sign Up</Link></li>
-              <li><a href="https://t.me" target="_blank" rel="noreferrer" className="hover:text-violet-600 transition">Telegram</a></li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="border-t border-violet-100/60 py-4 text-center text-[11px] text-gray-400">
-          © {new Date().getFullYear()} RentCoPartner. All rights reserved.
-        </div>
-      </footer>
+      <HomeFooter />
     </div>
   );
 }
