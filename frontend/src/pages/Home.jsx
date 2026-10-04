@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ArrowRight, Send, MapPin, Banknote, CalendarDays, Star, Shield,
   Smartphone, UserPlus, Sparkles, Inbox, Handshake, CircleDollarSign, TrendingUp,
@@ -6,9 +6,10 @@ import {
   Home as HomeIcon, Plane, Theater, Dumbbell, Music, Coffee, Utensils,
   MoreHorizontal, Clock, Lock, CheckCircle2, Heart, ChevronRight
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import HomeHeader from '../components/HomeHeader';
 import HomeFooter from '../components/HomeFooter';
+import AuthModal from '../components/AuthModal';
 
 /* ---------- Shared layout tokens (change here to affect every section) ---------- */
 // Same left/right spacing for every section
@@ -36,6 +37,9 @@ function SectionHeading({ eyebrow, title, subtitle, className = '' }) {
 }
 
 export default function Home() {
+  const [showBookLogin, setShowBookLogin] = useState(false);
+  const navigate = useNavigate();
+  const scrollToServices = () => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const quickServices = [
     { icon: <Coffee className="w-5 h-5 text-pink-500" />, label: 'Coffee Partner', bg: 'bg-pink-50' },
     { icon: <Utensils className="w-5 h-5 text-amber-500" />, label: 'Café & Food', bg: 'bg-amber-50' },
@@ -116,17 +120,17 @@ export default function Home() {
               Safe, verified and trusted companions for events, travel, dining, movies and more. Choose your service, location and time.
             </p>
 
-            <div className="flex flex-wrap items-center gap-4 pt-1">
+            <div className="grid grid-cols-2 gap-2 pt-1 sm:flex sm:flex-wrap sm:items-center sm:gap-4">
               <Link
                 to="/browse"
-                className="inline-flex items-center px-7 py-3.5 bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] hover:opacity-95 text-white font-semibold text-sm rounded-full shadow-lg shadow-violet-400/25 transition-all duration-200 group"
+                className="inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-full bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] px-2 py-3 text-[10px] font-semibold text-white shadow-lg shadow-violet-400/25 transition-all duration-200 group hover:opacity-95 sm:px-7 sm:py-3.5 sm:text-sm"
               >
                 Find a Companion
-                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="ml-1 h-3 w-3 shrink-0 transition-transform group-hover:translate-x-1 sm:ml-2 sm:h-4 sm:w-4" />
               </Link>
               <Link
                 to="/login?mode=register"
-                className="inline-flex items-center px-7 py-3.5 bg-white hover:bg-gray-50 text-gray-800 font-semibold text-sm rounded-full border border-gray-200 shadow-sm transition-all duration-200"
+                className="inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-full border border-gray-200 bg-white px-2 py-3 text-center text-[10px] font-semibold text-gray-800 shadow-sm transition-all duration-200 hover:bg-gray-50 sm:px-7 sm:py-3.5 sm:text-sm"
               >
                 Become a Companion
               </Link>
@@ -139,7 +143,7 @@ export default function Home() {
               </div>
               <div>
                 <p className="text-2xl font-black text-[#16132a]">5K+</p>
-                <p className="text-xs text-gray-500 font-medium">Successful Bookings</p>
+                <p className="whitespace-nowrap text-[10px] font-medium text-gray-500 sm:text-xs">Successful Bookings</p>
               </div>
               <div>
                 <p className="text-2xl font-black text-[#16132a] flex items-center gap-1">
@@ -160,7 +164,7 @@ export default function Home() {
 
             <div className="relative rounded-3xl overflow-hidden shadow-2xl max-w-md border-4 border-white">
               <img
-                src="Joyful South Asian Couple Portrait.png"
+                src="Joyful_South_Asian_Couple_Small.png"
                 alt="Rental Companion Couple"
                 className="w-full h-[400px] sm:h-[460px] object-cover"
               />
@@ -188,7 +192,16 @@ export default function Home() {
             {quickServices.map((srv, index) => (
               <div
                 key={index}
-                className="flex flex-col items-center justify-center p-2 rounded-2xl hover:bg-violet-50/60 cursor-pointer transition duration-200 group"
+                onClick={srv.label === 'More' ? scrollToServices : undefined}
+                onKeyDown={srv.label === 'More' ? (event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    scrollToServices();
+                  }
+                } : undefined}
+                role={srv.label === 'More' ? 'button' : undefined}
+                tabIndex={srv.label === 'More' ? 0 : undefined}
+                className={`flex flex-col items-center justify-center p-2 rounded-2xl transition duration-200 group ${srv.label === 'More' ? 'cursor-pointer hover:bg-violet-50/60 focus:outline-none focus:ring-2 focus:ring-violet-300' : ''}`}
               >
                 <div className={`w-12 h-12 rounded-2xl ${srv.bg} flex items-center justify-center mb-2 shadow-sm group-hover:scale-110 transition-transform`}>
                   {srv.icon}
@@ -252,12 +265,13 @@ export default function Home() {
           </div>
 
           <div className="mt-8 flex justify-center">
-            <Link
-              to="/browse"
+            <button
+              type="button"
+              onClick={() => setShowBookLogin(true)}
               className="px-6 py-2.5 rounded-full border border-pink-200 text-pink-600 hover:bg-pink-50 font-semibold text-xs transition-all flex items-center gap-1 shadow-sm"
             >
               View All <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
+            </button>
           </div>
         </div>
       </section>
@@ -298,6 +312,7 @@ export default function Home() {
 
                 <button
                   type="button"
+                  onClick={() => setShowBookLogin(true)}
                   className={`mt-3 flex w-full items-center justify-center rounded-lg py-2 text-[10px] font-bold text-white shadow-sm transition-all duration-200 hover:shadow-md active:scale-95 ${btnBg}`}
                 >
                   Book Now
@@ -364,6 +379,14 @@ export default function Home() {
       </a>
 
       <HomeFooter />
+      {showBookLogin && (
+        <AuthModal
+          isOpen
+          initialMode="login"
+          onClose={() => setShowBookLogin(false)}
+          onLogin={(data) => navigate('/dashboard', { replace: true, state: { user: data?.user } })}
+        />
+      )}
     </div>
   );
 }

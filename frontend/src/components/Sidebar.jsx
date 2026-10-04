@@ -61,7 +61,7 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
   async function handleLogout() {
     setLoggingOut(true);
     try { await logout(); } catch { /* The local session is cleared even if no logout route exists. */ }
-    navigate('/login', { replace: true });
+    navigate('/', { replace: true });
     onNavigate?.();
     setLoggingOut(false);
   }

@@ -46,6 +46,11 @@ function statusLabel(status) {
   return normalized === 'confirmed' ? 'Approved' : normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+function bookingStatus(booking) {
+  if (booking.otp_verified === true || booking.otpVerified === true) return 'completed';
+  return String(booking.booking_status || 'pending').toLowerCase();
+}
+
 function statusStyle(status) {
   const normalized = String(status || 'pending').toLowerCase();
   if (['approved', 'confirmed'].includes(normalized)) return 'bg-emerald-50 text-emerald-700';
@@ -89,7 +94,7 @@ export default function BookingsList() {
   }), [bookings, role, user]);
 
   const visibleBookings = useMemo(() => roleBookings.filter((booking) => {
-    const status = String(booking.booking_status || 'pending').toLowerCase();
+    const status = bookingStatus(booking);
     if (activeTab === 'Completed') return status === 'completed';
     if (activeTab === 'Cancelled') return ['cancelled', 'rejected'].includes(status);
     return !['completed', 'cancelled', 'rejected'].includes(status);
@@ -159,7 +164,7 @@ export default function BookingsList() {
           {visibleBookings.map((booking) => {
             const direction = getDirection(booking, user);
             const isIncoming = direction === 'incoming';
-            const status = String(booking.booking_status || 'pending').toLowerCase();
+            const status = bookingStatus(booking);
             const canRespond = isIncoming && status === 'pending';
             const chatPartnerId = getChatPartnerId(booking, user);
             const canChat = ['approved', 'confirmed'].includes(status) && chatPartnerId;
