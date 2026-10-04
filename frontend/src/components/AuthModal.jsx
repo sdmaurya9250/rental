@@ -29,7 +29,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
 
   // Form States
   const [phone, setPhone] = useState('');
-  const country = 'IN India (+91)';
+  const country = 'India';
   const [email, setEmail] = useState('');
   const [identifier, setIdentifier] = useState(''); // password-login email/mobile field
   const [password, setPassword] = useState('');
