@@ -14,8 +14,10 @@ const USER_KEY = 'rp_auth_user';
  * when present, and normalizes error handling so every caller gets a
  * consistent shape back (or a thrown Error with a readable message).
  */
-async function request(endpoint, { method = 'GET', body, auth = false } = {}) {
-  const headers = { 'Content-Type': 'application/json' };
+async function request(endpoint, { method = 'GET', body, rawBody, contentType, auth = false } = {}) {
+  const headers = contentType
+    ? { 'Content-Type': contentType }
+    : { 'Content-Type': 'application/json' };
 
   if (auth) {
     const token = getToken();
@@ -32,7 +34,7 @@ async function request(endpoint, { method = 'GET', body, auth = false } = {}) {
     response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: rawBody ?? (body ? JSON.stringify(body) : undefined),
     });
   } catch (networkErr) {
     const reason = networkErr instanceof Error ? networkErr.message : String(networkErr);
@@ -205,13 +207,32 @@ export function getMyProfile() {
 
 // Profile save uses POST with the bearer token.
 export function updateMyProfile(profile) {
-  return request('/api/profile', { method: 'PUT', body: profile, auth: true }).then((result) => {
+  return request('/api/profile', { method: 'PATCH', body: profile, auth: true }).then((result) => {
     const storedUser = getStoredUser() || {};
     const updatedUser = { ...storedUser, ...profile, ...(result?.profile || {}) };
     localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
     if (typeof window !== 'undefined') window.dispatchEvent(new Event('rp-profile-updated'));
     return result;
   });
+}
+
+export async function uploadProfilePhoto(file, type = 'avatar') {
+  const contentType = file.type?.startsWith('image/') ? file.type : 'image/jpeg';
+  const result = await request(`/api/profile/photo?type=${encodeURIComponent(type)}`, {
+    method: 'POST',
+    rawBody: file,
+    contentType,
+    auth: true,
+  });
+  const payload = result?.profile || result?.data || result || {};
+  const image = payload.image || payload.profile_image || payload.avatar_url || payload.photo || (type === 'avatar' ? payload.url : undefined);
+  const url = payload.url || image;
+  if (image && type === 'avatar') {
+    const storedUser = getStoredUser() || {};
+    localStorage.setItem(USER_KEY, JSON.stringify({ ...storedUser, image, profile_image: image, avatar_url: image }));
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('rp-profile-updated'));
+  }
+  return { ...result, image, url, gallery: payload.gallery };
 }
 
 export function createBooking(booking) {
