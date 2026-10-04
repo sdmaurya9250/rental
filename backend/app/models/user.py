@@ -39,6 +39,16 @@ class FeedRequest(BaseModel):
     radius_km: Optional[float] = None  # optional — if None, no hard radius cut (still sorted by distance)
 
 
+# class UserResponse(BaseModel):
+#     id: str
+#     email: str
+#     mobile: str
+#     country: str
+#     city: str
+#     gender: str
+#     want_to: str
+#     message: str
+
 class UserResponse(BaseModel):
     id: str
     email: str
@@ -48,6 +58,8 @@ class UserResponse(BaseModel):
     gender: str
     want_to: str
     message: str
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 
 class TokenResponse(BaseModel):
@@ -103,3 +115,11 @@ class BookingReject(BaseModel):
 class MessageCreate(BaseModel):
     receiver_id: str
     content: str = Field(..., min_length=1, max_length=2000)
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=6)
