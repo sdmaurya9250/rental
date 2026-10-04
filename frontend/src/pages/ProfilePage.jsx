@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import FeaturePage from '../components/FeaturePage';
-import { isAuthenticated } from '../auth/auth';
+import { getStoredUser, isAuthenticated } from '../auth/auth';
 import { createBookingRecord, formatPersonPrice as formatPrice, fetchPersonById, getPersonPrice } from './finderApi';
 
 function localDate() {
@@ -75,6 +75,9 @@ export default function ProfilePage() {
 }
 
 function ProfileDetails({ person }) {
+  const signedInUser = getStoredUser() || {};
+  const signedInRole = String(signedInUser.want_to || signedInUser.wantTo || signedInUser.accountIntent || '').trim().toLowerCase();
+  const isBecomeOnly = ['become a rentpeople', 'become a rentcopartner', 'become'].includes(signedInRole);
   const services = useMemo(() => (person.services || [
     { 
       title: 'Movie Partner', 
@@ -432,9 +435,10 @@ function ProfileDetails({ person }) {
                 </div>
                 <h2 className="text-base font-bold text-gray-900">Services & prices</h2>
               </div>
-              <p className="text-xs text-gray-500 mt-1">Choose from {person.name}'s available services and book an appointment.</p>
+              <p className="text-xs text-gray-500 mt-1">{isBecomeOnly ? `Available services and prices from ${person.name}.` : `Choose from ${person.name}'s available services and book an appointment.`}</p>
             </div>
             
+            {!isBecomeOnly && (
             <button 
               type="button" 
               onClick={() => setShowBookingForm(!showBookingForm)} 
@@ -442,6 +446,7 @@ function ProfileDetails({ person }) {
             >
               <Plus className="w-4 h-4" /> Add Book Appointment
             </button>
+            )}
           </div>
 
           {/* Service Cards Grid */}
@@ -472,7 +477,7 @@ function ProfileDetails({ person }) {
                     </p>
                   </div>
 
-                  <button
+                  {!isBecomeOnly && <button
                     type="button"
                     onClick={() => {
                       setSelectedServiceId(service.id);
@@ -486,7 +491,7 @@ function ProfileDetails({ person }) {
                     }`}
                   >
                     Book Now →
-                  </button>
+                  </button>}
                 </div>
               );
             })}
@@ -494,7 +499,7 @@ function ProfileDetails({ person }) {
         </div>
 
         {/* Booking Form (Toggled or inline) */}
-        {showBookingForm && (
+        {!isBecomeOnly && showBookingForm && (
           <form onSubmit={submitBooking} className="grid gap-6 lg:grid-cols-[1fr_320px] bg-white p-6 rounded-2xl border border-purple-100 shadow-sm">
             <div className="space-y-5">
               <section>
