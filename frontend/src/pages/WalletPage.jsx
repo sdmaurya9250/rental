@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react';
-import { ArrowDownToLine, ArrowUpFromLine, Wallet } from 'lucide-react';
+import { 
+  ArrowDownToLine, 
+  ArrowUpFromLine, 
+  Wallet, 
+  PlusCircle, 
+  Clock, 
+  AlertCircle 
+} from 'lucide-react';
 import FeaturePage from '../components/FeaturePage';
 import { getMyProfile, getStoredUser } from '../auth/auth';
 
-function roleDetails(role) {
+const QUICK_AMOUNTS = [500, 1000, 2000];
+
+function getRoleDetails(role) {
   const normalized = String(role || '').trim().toLowerCase();
   if (normalized === 'both') {
     return {
@@ -32,7 +41,9 @@ function roleDetails(role) {
 function formatMoney(value) {
   if (value == null || value === '') return '—';
   const amount = Number(value);
-  return Number.isFinite(amount) ? `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—';
+  return Number.isFinite(amount)
+    ? `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+    : '—';
 }
 
 export default function WalletPage() {
@@ -46,85 +57,219 @@ export default function WalletPage() {
     let active = true;
     getMyProfile()
       .then((result) => {
-        if (active) setProfile({ ...(getStoredUser() || {}), ...(result?.profile || result || {}) });
+        if (active) {
+          setProfile({ ...(getStoredUser() || {}), ...(result?.profile || result || {}) });
+        }
       })
       .catch((error) => {
-        if (active) setLoadError(error.message || 'Wallet profile details could not be loaded.');
+        if (active) {
+          setLoadError(error.message || 'Wallet profile details could not be loaded.');
+        }
       })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const role = profile.want_to || profile.wantTo || profile.accountIntent || '';
-  const details = roleDetails(role);
+  const details = getRoleDetails(role);
   const balance = profile.wallet_balance ?? profile.walletBalance ?? profile.wallet?.balance;
   const earned = profile.total_earned ?? profile.totalEarned ?? profile.wallet?.total_earned;
   const transactions = Array.isArray(profile.transactions)
     ? profile.transactions
-    : Array.isArray(profile.wallet?.transactions) ? profile.wallet.transactions : [];
+    : Array.isArray(profile.wallet?.transactions)
+    ? profile.wallet.transactions
+    : [];
 
   function handleAddMoney(event) {
     event.preventDefault();
     setTopUpMessage('');
     const amount = Number(topUpAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setTopUpMessage('Enter an amount greater than ₹0.');
+
+    if (!Number.isFinite(amount) || amount <= 100) {
+      setTopUpMessage('Please enter an amount greater than ₹100.');
       return;
     }
-    setTopUpMessage('The amount is ready, but adding money needs the wallet payment API to be connected. No funds were added.');
+
+    setTopUpMessage('Payment gateway integration required. No funds were added.');
   }
 
   return (
-    <FeaturePage title="My wallet" subtitle="See how your account role uses the RentCoPartner wallet.">
-      <div className="w-full max-w-5xl space-y-5">
-        {loadError && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{loadError}</p>}
+    <FeaturePage 
+      title="My Wallet" 
+      subtitle="Manage your balance, add funds, and view earnings in one place."
+    >
+      <div className="w-full max-w-5xl space-y-6">
+        {/* Error Banner */}
+        {loadError && (
+          <div role="alert" className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <AlertCircle className="h-5 w-5 shrink-0 text-amber-600" />
+            <span>{loadError}</span>
+          </div>
+        )}
 
-        <section className="rounded-2xl bg-gradient-to-br from-violet-950 via-violet-800 to-fuchsia-700 p-6 text-white shadow-lg">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-violet-100">Wallet balance</p>
-              <p className="mt-2 text-3xl font-extrabold">{loading ? '…' : formatMoney(balance)}</p>
-              {!loading && balance == null && <p className="mt-2 text-xs text-violet-100">Balance will appear when wallet data is available.</p>}
-            </div>
-            <span className="rounded-xl bg-white/15 p-3"><Wallet className="h-6 w-6" /></span>
-          </div>
-          <div className="mt-6 flex flex-wrap gap-2">
-            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold">Account role: {role || 'Not set'}</span>
-            {details.canAdd && <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-violet-800"><ArrowDownToLine className="h-3.5 w-3.5" />Add money</span>}
-            {details.canEarn && <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-fuchsia-800"><ArrowUpFromLine className="h-3.5 w-3.5" />Earn money</span>}
-          </div>
+        {/* Balance Header Card */}
+        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-violet-900 via-violet-800 to-fuchsia-800 p-6 text-white shadow-md sm:p-8">
+<div className="flex items-center justify-between gap-3">
+  <div>
+    <p className="text-[11px] font-medium tracking-wide text-violet-200">Total Balance</p>
+    <p className="mt-0.5 text-xl font-semibold sm:text-2xl">
+      {loading ? (
+        <span className="animate-pulse">Loading...</span>
+      ) : (
+        balance == null ? '₹0.00' : formatMoney(balance)
+      )}
+    </p>
+    {!loading && balance == null && (
+      <p className="mt-0.5 text-[11px] text-violet-200">Balance will update once setup is complete.</p>
+    )}
+  </div>
+  <div className="rounded-xl bg-white/10 p-2.5 backdrop-blur-md">
+    <Wallet className="h-5 w-5 text-white" />
+  </div>
+</div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2">
-          {details.canAdd && <article className="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm">
-            <span className="inline-flex rounded-xl bg-violet-50 p-2.5 text-violet-700"><ArrowDownToLine className="h-5 w-5" /></span>
-            <h2 className="mt-3 font-bold text-[#211a35]">Add money</h2>
-            <p className="mt-1 text-sm leading-relaxed text-[#706a80]">{details.canEarn ? 'Add wallet funds for bookings, and earn money when you provide a service.' : details.description}</p>
-            <form onSubmit={handleAddMoney} className="mt-4 space-y-3">
-              <label htmlFor="wallet-top-up-amount" className="block text-xs font-semibold text-[#40394f]">Amount (₹)</label>
-              <div className="flex gap-2">
-                <input id="wallet-top-up-amount" type="number" min="1" step="1" inputMode="decimal" value={topUpAmount} onChange={(event) => { setTopUpAmount(event.target.value); setTopUpMessage(''); }} placeholder="Enter amount" className="min-w-0 flex-1 rounded-lg border border-[#e4dff0] px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-300" />
-                <button type="submit" className="shrink-0 rounded-lg bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-800">Add money</button>
+        {/* Action Grid */}
+        <section className="grid gap-6 md:grid-cols-2">
+          {/* Top Up Card */}
+          {details.canAdd && (
+            <article className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-violet-50 p-2.5 text-violet-700">
+                    <ArrowDownToLine className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Add Money</h2>
+                    <p className="text-xs text-slate-500">Top up your wallet balance</p>
+                  </div>
+                </div>
+
+                <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+                  {details.canEarn 
+                    ? 'Add wallet funds to pay for bookings anytime.' 
+                    : details.description}
+                </p>
+
+                {/* Quick Selection Chips */}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {QUICK_AMOUNTS.map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setTopUpAmount(String(amt))}
+                      className="rounded-lg border border-violet-100 bg-violet-50/50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 hover:text-violet-800"
+                    >
+                      +₹{amt}
+                    </button>
+                  ))}
+                </div>
               </div>
-              {topUpMessage && <p role="status" className="text-xs text-amber-800">{topUpMessage}</p>}
-            </form>
-          </article>}
-          {details.canEarn && <article className="rounded-2xl border border-fuchsia-100 bg-white p-5 shadow-sm">
-            <span className="inline-flex rounded-xl bg-fuchsia-50 p-2.5 text-fuchsia-700"><ArrowUpFromLine className="h-5 w-5" /></span>
-            <h2 className="mt-3 font-bold text-[#211a35]">Your earnings</h2>
-            <p className="mt-1 text-2xl font-extrabold text-[#211a35]">{loading ? '…' : formatMoney(earned)}</p>
-            <p className="mt-1 text-sm text-[#706a80]">{details.canAdd ? 'Earnings from your RentCoPartner services.' : details.description}</p>
-          </article>}
+
+              <form onSubmit={handleAddMoney} className="mt-5 space-y-3">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute inset-y-0 left-3 flex items-center text-sm font-medium text-slate-400">₹</span>
+                    <input
+                      id="wallet-top-up-amount"
+                      type="number"
+                      min="100.01"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={topUpAmount}
+                      onChange={(e) => {
+                        setTopUpAmount(e.target.value);
+                        setTopUpMessage('');
+                      }}
+                      placeholder="More than ₹100"
+                      className="w-full rounded-xl border border-slate-200 pl-7 pr-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-1.5 shrink-0 rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-800 active:bg-violet-900"
+                  >
+                    <PlusCircle className="h-4 w-4" /> Add
+                  </button>
+                </div>
+
+                {topUpMessage && (
+                  <p role="status" className="text-xs font-medium text-amber-700">
+                    {topUpMessage}
+                  </p>
+                )}
+              </form>
+            </article>
+          )}
+
+          {/* Earnings Card */}
+          {details.canEarn && (
+            <article className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-fuchsia-50 p-2.5 text-fuchsia-700">
+                    <ArrowUpFromLine className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Total Earnings</h2>
+                    <p className="text-xs text-slate-500">Income from completed bookings</p>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-3xl font-black text-slate-900">
+                    {loading ? <span className="animate-pulse text-lg text-slate-400">Loading...</span> : formatMoney(earned)}
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-4 text-sm text-slate-500 leading-relaxed">
+                {details.canAdd 
+                  ? 'Earnings accumulated through your RentCoPartner services.' 
+                  : details.description}
+              </p>
+            </article>
+          )}
         </section>
 
-        <section className="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm">
-          <h2 className="font-bold text-[#211a35]">Recent transactions</h2>
-          {transactions.length ? <div className="mt-3 divide-y divide-violet-50">
-            {transactions.map((transaction, index) => <div key={transaction.id || index} className="flex items-center justify-between gap-3 py-3 text-sm">
-              <div><p className="font-semibold text-[#211a35]">{transaction.description || transaction.type || 'Wallet transaction'}</p><p className="text-xs text-[#827b95]">{transaction.created_at || transaction.date || ''}</p></div>
-              <span className="font-bold text-[#211a35]">{formatMoney(transaction.amount)}</span>
-            </div>)}
-          </div> : <p className="mt-2 text-sm text-[#827b95]">No transactions to show yet.</p>}
+        {/* Recent Transactions Card */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <h2 className="text-base font-bold text-slate-900">Recent Transactions</h2>
+            <Clock className="h-4 w-4 text-slate-400" />
+          </div>
+
+          {transactions.length > 0 ? (
+            <div className="divide-y divide-slate-100">
+              {transactions.map((tx, idx) => {
+                const isCredit = tx.type?.toLowerCase() === 'credit' || (tx.amount && Number(tx.amount) > 0);
+                return (
+                  <div key={tx.id || idx} className="flex items-center justify-between py-3.5 text-sm transition hover:bg-slate-50/50 rounded-lg px-2 -mx-2">
+                    <div className="space-y-0.5">
+                      <p className="font-semibold text-slate-800">
+                        {tx.description || tx.type || 'Wallet Transaction'}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {tx.created_at || tx.date || 'Recent'}
+                      </p>
+                    </div>
+                    <span className={`font-bold ${isCredit ? 'text-emerald-600' : 'text-slate-900'}`}>
+                      {isCredit ? '+' : ''}{formatMoney(tx.amount)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-8 text-center">
+              <p className="text-sm text-slate-400">No transactions recorded yet.</p>
+            </div>
+          )}
         </section>
       </div>
     </FeaturePage>

@@ -121,19 +121,21 @@ export default function Home() {
             </p>
 
             <div className="grid grid-cols-2 gap-2 pt-1 sm:flex sm:flex-wrap sm:items-center sm:gap-4">
-              <Link
-                to="/browse"
+              <button
+                type="button"
+                onClick={() => setShowBookLogin(true)}
                 className="inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-full bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] px-2 py-3 text-[10px] font-semibold text-white shadow-lg shadow-violet-400/25 transition-all duration-200 group hover:opacity-95 sm:px-7 sm:py-3.5 sm:text-sm"
               >
                 Find a Companion
                 <ArrowRight className="ml-1 h-3 w-3 shrink-0 transition-transform group-hover:translate-x-1 sm:ml-2 sm:h-4 sm:w-4" />
-              </Link>
-              <Link
-                to="/login?mode=register"
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBookLogin(true)}
                 className="inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-full border border-gray-200 bg-white px-2 py-3 text-center text-[10px] font-semibold text-gray-800 shadow-sm transition-all duration-200 hover:bg-gray-50 sm:px-7 sm:py-3.5 sm:text-sm"
               >
                 Become a Companion
-              </Link>
+              </button>
             </div>
 
             <div className="grid grid-cols-3 gap-4 pt-6 border-t border-gray-100 max-w-md">

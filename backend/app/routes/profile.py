@@ -315,18 +315,86 @@ async def update_profile(
     return {"message": "Profile updated successfully"}
 
 
+# @router.post("/profile/photo")
+# async def upload_profile_photo(
+#     request: Request,
+#     current_user: dict = Depends(get_current_user),
+#     type: str = Query("avatar", pattern="^(avatar|gallery)$"),
+# ):
+#     """
+#     Single photo upload:
+#       POST /api/profile/photo?type=avatar
+#       POST /api/profile/photo?type=gallery
+#     Body = raw image bytes
+#     """
+#     content_type = request.headers.get("content-type", "image/jpeg")
+#     if not content_type.startswith("image/"):
+#         raise HTTPException(status_code=400, detail="Only image files are allowed")
+#
+#     body = await request.body()
+#     if not body:
+#         raise HTTPException(status_code=400, detail="No file received")
+#
+#     user_id = current_user["id"]
+#     ext = _ext_from_content_type(content_type)
+#     images = request.scope["env"].IMAGES
+#     db = request.scope["env"].DB
+#
+#     if type == "avatar":
+#         key = f"profiles/{user_id}/avatar.{ext}"
+#         await images.put(key, body, httpMetadata={"contentType": content_type})
+#         image_url = f"{R2_PUBLIC_URL}/{key}"
+#
+#         await db.prepare(
+#             "UPDATE users SET image = ? WHERE id = ?"
+#         ).bind(image_url, user_id).run()
+#
+#         return {
+#             "type": "avatar",
+#             "image": image_url,
+#             "message": "Avatar uploaded successfully",
+#         }
+#
+#     file_id = str(uuid.uuid4())[:8]
+#     key = f"profiles/{user_id}/gallery/{file_id}.{ext}"
+#     await images.put(key, body, httpMetadata={"contentType": content_type})
+#     image_url = f"{R2_PUBLIC_URL}/{key}"
+#
+#     row = await db.prepare(
+#         "SELECT gallery FROM users WHERE id = ?"
+#     ).bind(user_id).first()
+#
+#     gallery = []
+#     if row:
+#         raw = dict(row).get("gallery")
+#         if raw:
+#             try:
+#                 gallery = json.loads(raw) if isinstance(raw, str) else list(raw)
+#             except Exception:
+#                 gallery = []
+#
+#     if image_url not in gallery:
+#         gallery.append(image_url)
+#     gallery = gallery[-6:]
+#
+#     await db.prepare(
+#         "UPDATE users SET gallery = ? WHERE id = ?"
+#     ).bind(json.dumps(gallery), user_id).run()
+#
+#     return {
+#         "type": "gallery",
+#         "url": image_url,
+#         "gallery": gallery,
+#         "message": "Gallery image uploaded successfully",
+#     }
+
 @router.post("/profile/photo")
 async def upload_profile_photo(
     request: Request,
     current_user: dict = Depends(get_current_user),
     type: str = Query("avatar", pattern="^(avatar|gallery)$"),
+    index: int | None = Query(None, ge=0, le=3),  # gallery slot 0–3
 ):
-    """
-    Single photo upload:
-      POST /api/profile/photo?type=avatar
-      POST /api/profile/photo?type=gallery
-    Body = raw image bytes
-    """
     content_type = request.headers.get("content-type", "image/jpeg")
     if not content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Only image files are allowed")
@@ -340,6 +408,7 @@ async def upload_profile_photo(
     images = request.scope["env"].IMAGES
     db = request.scope["env"].DB
 
+    # ── Avatar ──
     if type == "avatar":
         key = f"profiles/{user_id}/avatar.{ext}"
         await images.put(key, body, httpMetadata={"contentType": content_type})
@@ -355,11 +424,7 @@ async def upload_profile_photo(
             "message": "Avatar uploaded successfully",
         }
 
-    file_id = str(uuid.uuid4())[:8]
-    key = f"profiles/{user_id}/gallery/{file_id}.{ext}"
-    await images.put(key, body, httpMetadata={"contentType": content_type})
-    image_url = f"{R2_PUBLIC_URL}/{key}"
-
+    # ── Gallery (max 4) ──
     row = await db.prepare(
         "SELECT gallery FROM users WHERE id = ?"
     ).bind(user_id).first()
@@ -373,9 +438,25 @@ async def upload_profile_photo(
             except Exception:
                 gallery = []
 
-    if image_url not in gallery:
+    # Keep only valid URLs, max structure size 4
+    gallery = [g for g in gallery if g][:4]
+
+    file_id = str(uuid.uuid4())[:8]
+    key = f"profiles/{user_id}/gallery/{file_id}.{ext}"
+    await images.put(key, body, httpMetadata={"contentType": content_type})
+    image_url = f"{R2_PUBLIC_URL}/{key}"
+
+    if len(gallery) < 4:
+        # Still free slots → append
         gallery.append(image_url)
-    gallery = gallery[-6:]
+        used_index = len(gallery) - 1
+    else:
+        # Full (4) → overwrite by index
+        used_index = index if index is not None else 0
+        gallery[used_index] = image_url
+
+    # Hard cap 4
+    gallery = gallery[:4]
 
     await db.prepare(
         "UPDATE users SET gallery = ? WHERE id = ?"
@@ -384,6 +465,8 @@ async def upload_profile_photo(
     return {
         "type": "gallery",
         "url": image_url,
+        "index": used_index,
         "gallery": gallery,
-        "message": "Gallery image uploaded successfully",
+        "max": 4,
+        "message": f"Gallery image saved at index {used_index}",
     }
