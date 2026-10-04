@@ -12,7 +12,7 @@ export default function Navbar({ activeTab = 'Browse', onTabChange }) {
           <span className="w-3.5 h-3.5 bg-pink-500 rounded-full inline-block"></span>
           <span className="w-3.5 h-3.5 bg-purple-500 rounded-full inline-block"></span>
         </div>
-        <span className="text-xl font-bold text-white tracking-tight">RentPeople</span>
+        <span className="text-xl font-bold text-white tracking-tight">RentCoPartner</span>
       </div>
 
       {/* Navigation Links */}

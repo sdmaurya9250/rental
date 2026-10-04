@@ -8,14 +8,14 @@ function roleDetails(role) {
   if (normalized === 'both') {
     return {
       title: 'Earn and add money',
-      description: 'Use your wallet to pay for bookings as a Finder and receive earnings as a RentPeople.',
+      description: 'Use your wallet to pay for bookings as a Finder and receive earnings as a RentCoPartner.',
       canAdd: true,
       canEarn: true,
     };
   }
   if (normalized === 'become a rentpeople' || normalized === 'become') {
     return {
-      title: 'Earn as a RentPeople',
+      title: 'Earn as a RentCoPartner',
       description: 'Your earnings from completed bookings will be shown here.',
       canAdd: false,
       canEarn: true,
@@ -23,7 +23,7 @@ function roleDetails(role) {
   }
   return {
     title: 'Add money to book',
-    description: 'Add funds to your wallet to pay for RentPeople bookings.',
+    description: 'Add funds to your wallet to pay for RentCoPartner bookings.',
     canAdd: true,
     canEarn: false,
   };
@@ -75,7 +75,7 @@ export default function WalletPage() {
   }
 
   return (
-    <FeaturePage title="My wallet" subtitle="See how your account role uses the RentPeople wallet.">
+    <FeaturePage title="My wallet" subtitle="See how your account role uses the RentCoPartner wallet.">
       <div className="w-full max-w-5xl space-y-5">
         {loadError && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{loadError}</p>}
 
@@ -113,7 +113,7 @@ export default function WalletPage() {
             <span className="inline-flex rounded-xl bg-fuchsia-50 p-2.5 text-fuchsia-700"><ArrowUpFromLine className="h-5 w-5" /></span>
             <h2 className="mt-3 font-bold text-[#211a35]">Your earnings</h2>
             <p className="mt-1 text-2xl font-extrabold text-[#211a35]">{loading ? '…' : formatMoney(earned)}</p>
-            <p className="mt-1 text-sm text-[#706a80]">{details.canAdd ? 'Earnings from your RentPeople services.' : details.description}</p>
+            <p className="mt-1 text-sm text-[#706a80]">{details.canAdd ? 'Earnings from your RentCoPartner services.' : details.description}</p>
           </article>}
         </section>
 

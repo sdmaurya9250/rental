@@ -72,7 +72,7 @@ export default function AppointmentDetails({ booking, currentUser, onVerify }) {
     try {
       payload = JSON.parse(decodedText);
     } catch {
-      setMessage('That QR code is not a RentPeople appointment code.');
+      setMessage('That QR code is not a RentCoPartner appointment code.');
       return;
     }
     if (payload.type !== 'rental-meetup-check-in' || String(payload.bookingId) !== String(booking.id)) {

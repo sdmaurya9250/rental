@@ -37,6 +37,8 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
     // { to: '/other', label: 'Other', icon: MoreHorizontal },
   ];
   const user = getStoredUser();
+  const displayName = user?.fullName || user?.full_name || user?.name || user?.username || user?.email || 'My account';
+  const profileImage = user?.image || user?.profile_image || user?.avatar_url || user?.photo || '';
   const role = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
   const isBecomeRole = role === 'become a rentpeople' || role === 'become';
   const isFindRole = role === 'find a rentpeople' || role === 'find';
@@ -69,7 +71,7 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
       <div className="mb-5 flex items-center justify-between border-b border-white/10 px-1 pb-4">
         <NavLink to="/" onClick={onNavigate} className="flex items-center gap-2.5">
           <span className="relative flex h-8 w-8 items-center justify-center text-xl font-black text-fuchsia-400">♥<span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-violet-400" /></span>
-          <span><span className="block text-sm font-extrabold tracking-wide text-white">RentPeople</span><span className="block text-[9px] tracking-wide text-violet-200/60">Meet · Connect · Rent</span></span>
+          <span><span className="block text-sm font-extrabold tracking-wide text-white">RentCoPartner</span><span className="block text-[9px] tracking-wide text-violet-200/60">Meet · Connect · Rent</span></span>
         </NavLink>
         <button onClick={onNavigate} className="rounded-lg p-2 text-violet-100/70 hover:bg-white/10 lg:hidden" aria-label="Close menu"><X className="h-5 w-5" /></button>
       </div>
@@ -96,7 +98,13 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
           );
         })}
       </div>
-      <button type="button" onClick={handleLogout} disabled={loggingOut} className="mt-auto flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-violet-100/75 transition hover:bg-white/10 hover:text-white disabled:opacity-60">
+      <div className="mt-auto flex items-center gap-3 border-t border-white/10 px-3.5 py-4 lg:hidden">
+        <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-700 text-sm font-bold text-white">
+          {profileImage ? <img src={profileImage} alt="" className="h-full w-full object-cover" /> : displayName.charAt(0).toUpperCase()}
+        </span>
+        <span className="min-w-0 truncate text-sm font-semibold text-white">{displayName}</span>
+      </div>
+      <button type="button" onClick={handleLogout} disabled={loggingOut} className="mt-2 flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-violet-100/75 transition hover:bg-white/10 hover:text-white disabled:opacity-60 lg:mt-auto">
         <LogOut className="h-4 w-4 text-violet-200/70" />
         <span>{loggingOut ? 'Logging out…' : 'Logout'}</span>
       </button>

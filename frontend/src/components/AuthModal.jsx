@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, Phone, Globe, Mail, Lock, Eye, EyeOff, MapPin, Hash, Search, UserPlus, Users, Loader2 } from 'lucide-react';
+import { X, Phone, Mail, Lock, Eye, EyeOff, MapPin, Hash, Search, UserPlus, Users, Loader2 } from 'lucide-react';
 import {
   sendLoginOtp,
   verifyLoginOtp,
   loginWithPassword,
   registerUser,
 } from '../auth/auth';
+import { getCurrentLocation, reverseGeocode } from '../pages/finderApi';
 
 // --- Maps between what the UI shows and what the backend's Literal types expect ---
 const GENDER_OPTIONS = [
@@ -15,8 +16,8 @@ const GENDER_OPTIONS = [
 ];
 
 const INTENT_OPTIONS = [
-  { value: 'Find a RentPeople', label: 'Find a RentPeople', icon: Search },
-  { value: 'Become a RentPeople', label: 'Become a RentPeople', icon: UserPlus },
+  { value: 'Find a RentCoPartner', label: 'Find a RentCoPartner', icon: Search },
+  { value: 'Become a RentCoPartner', label: 'Become a RentCoPartner', icon: UserPlus },
   { value: 'Both', label: 'Both', icon: Users },
 ];
 
@@ -28,15 +29,18 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
 
   // Form States
   const [phone, setPhone] = useState('');
-  const [country, setCountry] = useState('IN India (+91)');
+  const country = 'IN India (+91)';
   const [email, setEmail] = useState('');
   const [identifier, setIdentifier] = useState(''); // password-login email/mobile field
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [city, setCity] = useState('');
+  const [coordinates, setCoordinates] = useState(null);
   const [pincode, setPincode] = useState('');
   const [gender, setGender] = useState(''); // now holds 'Male' | 'Female' | 'Other'
-  const [accountIntent, setAccountIntent] = useState('Find a RentPeople'); // now holds backend literal directly
+  const [accountIntent, setAccountIntent] = useState('Find a RentCoPartner');
+  const [detectingLocation, setDetectingLocation] = useState(false);
 
   // OTP flow state
   const [otp, setOtp] = useState('');
@@ -130,11 +134,15 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
       setError('Password must be at least 6 characters.');
       return;
     }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
     try {
       setLoading(true);
       // Keys and values here must match RegisterRequest exactly:
       // country, city, pincode, gender ('Male'|'Female'|'Other'),
-      // want_to ('Find a RentPeople'|'Become a RentPeople'|'Both'),
+      // want_to ('Find a RentCoPartner'|'Become a RentCoPartner'|'Both'),
       // mobile, email, password
       const data = await registerUser({
         country,
@@ -142,6 +150,8 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
         pincode,
         gender,
         want_to: accountIntent,
+        lat: coordinates?.lat ?? null,
+        lng: coordinates?.lng ?? null,
         mobile: phone,
         email,
         password,
@@ -151,6 +161,27 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function detectRegistrationCity() {
+    setError('');
+    setDetectingLocation(true);
+    try {
+      const coordinates = await getCurrentLocation();
+      const place = await reverseGeocode(coordinates);
+      if (!place.city) {
+        throw new Error('Could not identify your city. Please enter it manually.');
+      }
+      setCoordinates(coordinates);
+      setCity(place.city);
+    } catch (err) {
+      const message = err.message || '';
+      setError(/permission was denied/i.test(message)
+        ? 'Location is blocked. In Chrome, open the site settings from the icon beside the address bar, set Location to Allow, then tap Detect my location again.'
+        : `${message || 'Unable to detect your location.'} You can also enter your city manually.`);
+    } finally {
+      setDetectingLocation(false);
     }
   }
 
@@ -172,12 +203,12 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#211536]/35 backdrop-blur-[2px] p-3 overflow-y-auto">
       {/* Modal Box Container */}
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden my-8 transform transition-all">
 
         {/* Header Gradient Strip */}
-        <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 p-6 text-white relative">
+        <div className="bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] p-5 text-white relative">
           <button
             onClick={onClose}
             className="absolute right-4 top-4 text-white/80 hover:text-white p-1 rounded-full transition"
@@ -185,14 +216,14 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
             <X className="w-6 h-6" />
           </button>
 
-          <h2 className="text-2xl font-bold tracking-tight">Welcome to RentPeople</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Welcome to RentCoPartner</h2>
           <p className="text-xs text-white/90 mt-1 font-medium">
             Your social & lifestyle support platform
           </p>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-5 text-gray-800 max-h-[80vh] overflow-y-auto">
+        <div className="p-5 space-y-4 text-gray-800 max-h-[82vh] overflow-y-auto">
 
           {/* Main Mode Toggle Tabs (Login vs Register) */}
           <div className="bg-gray-100 p-1 rounded-xl flex items-center">
@@ -200,7 +231,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
               type="button"
               onClick={() => setMode('login')}
               className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition duration-200 ${
-                mode === 'login' ? 'bg-purple-600 text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
+                mode === 'login' ? 'bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               Login
@@ -209,7 +240,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
               type="button"
               onClick={() => setMode('register')}
               className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition duration-200 ${
-                mode === 'register' ? 'bg-purple-600 text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
+                mode === 'register' ? 'bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               Register
@@ -232,7 +263,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                   type="button"
                   onClick={() => setLoginType('password')}
                   className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${
-                    loginType === 'password' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                    loginType === 'password' ? 'bg-white text-[#8a1cf7] shadow-sm' : 'text-gray-500 hover:text-gray-800'
                   }`}
                 >
                   Password
@@ -241,7 +272,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                   type="button"
                   onClick={() => setLoginType('otp')}
                   className={`flex-1 py-2 text-xs font-semibold rounded-lg transition ${
-                    loginType === 'otp' ? 'bg-white text-purple-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                    loginType === 'otp' ? 'bg-white text-[#8a1cf7] shadow-sm' : 'text-gray-500 hover:text-gray-800'
                   }`}
                 >
                   Login with OTP
@@ -262,7 +293,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                         onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                         placeholder="Enter your mobile number"
                         maxLength={10}
-                        className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition disabled:bg-gray-50 disabled:text-gray-500"
+                        className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#8a1cf7] focus:ring-1 focus:ring-[#8a1cf7] transition disabled:bg-gray-50 disabled:text-gray-500"
                       />
                     </div>
                   </div>
@@ -277,13 +308,13 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                         onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                         placeholder="6-digit code"
                         maxLength={6}
-                        className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm tracking-widest text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-600 transition"
+                        className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm tracking-widest text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#8a1cf7] transition"
                       />
                       <button
                         type="button"
                         onClick={handleSendOtp}
                         disabled={loading}
-                        className="text-xs text-purple-600 font-medium hover:underline"
+                        className="text-xs text-[#8a1cf7] font-medium hover:underline"
                       >
                         Resend OTP
                       </button>
@@ -302,7 +333,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                         value={identifier}
                         onChange={(e) => setIdentifier(e.target.value)}
                         placeholder="Enter your registered email"
-                        className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-600 transition"
+                        className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#8a1cf7] transition"
                       />
                     </div>
                   </div>
@@ -316,7 +347,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Enter password"
-                        className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-10 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-600 transition"
+                        className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-10 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#8a1cf7] transition"
                       />
                       <button
                         type="button"
@@ -329,7 +360,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                   </div>
 
                   <div className="text-right">
-                    <button type="button" className="text-xs text-purple-600 font-medium hover:underline">
+                    <button type="button" className="text-xs text-[#8a1cf7] font-medium hover:underline">
                       Forgot Password?
                     </button>
                   </div>
@@ -341,7 +372,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                 type="button"
                 onClick={handlePrimaryAction}
                 disabled={loading}
-                className="w-full mt-2 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-semibold rounded-xl text-sm transition duration-200 shadow-md shadow-pink-500/20 disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full mt-2 py-3 bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] hover:opacity-95 text-white font-semibold rounded-xl text-sm transition duration-200 shadow-md shadow-violet-500/20 disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 {primaryLabel()}
@@ -352,52 +383,32 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
           {/* ================= REGISTER FORM ================= */}
           {mode === 'register' && (
             <div className="space-y-4">
-              {/* Country Select Field */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-700">
-                  Country <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <Globe className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-800 font-medium focus:outline-none focus:border-purple-600 transition"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-700">City <span className="text-red-500">*</span></label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <input type="text" value={city} onChange={(event) => setCity(event.target.value)} placeholder="Your city" className="w-full rounded-xl border border-gray-300 bg-white py-3 pl-10 pr-4 text-sm text-gray-800 placeholder-gray-400 focus:border-purple-600 focus:outline-none" />
+              {/* Contact and password details come first; country and account intent use defaults. */}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700">Mobile Number <span className="text-red-500">*</span></label>
+                  <div className="flex rounded-xl border border-gray-300 overflow-hidden focus-within:border-[#8a1cf7] transition">
+                    <span className="bg-gray-50 border-r border-gray-300 px-3 flex items-center text-xs font-semibold text-gray-600">+91</span>
+                    <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} placeholder="Enter mobile number" maxLength={10} className="w-full bg-white px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-gray-700">Pincode <span className="text-red-500">*</span></label>
-                  <div className="relative">
-                    <Hash className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <input type="text" inputMode="numeric" maxLength="6" value={pincode} onChange={(event) => setPincode(event.target.value.replace(/\D/g, ''))} placeholder="6-digit" className="w-full rounded-xl border border-gray-300 bg-white py-3 pl-10 pr-4 text-sm text-gray-800 placeholder-gray-400 focus:border-purple-600 focus:outline-none" />
-                  </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700">Email <span className="text-red-500">*</span></label>
+                  <div className="relative"><Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#8a1cf7] transition" /></div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700">Password <span className="text-red-500">*</span></label>
+                  <div className="relative"><Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" /><input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-10 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#8a1cf7] transition" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-700">Confirm Password <span className="text-red-500">*</span></label>
+                  <div className="relative"><Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" /><input type={showPassword ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter your password" className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#8a1cf7] transition" /></div>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-700">Gender <span className="text-red-500">*</span></label>
-                <select value={gender} onChange={(event) => setGender(event.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-800 focus:border-purple-600 focus:outline-none">
-                  <option value="" disabled>Select gender</option>
-                  {GENDER_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
                 <label className="text-xs font-semibold text-gray-700">I want to <span className="text-red-500">*</span></label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="grid grid-cols-3 gap-2">
                   {INTENT_OPTIONS.map((option) => {
                     const Icon = option.icon;
                     const selected = accountIntent === option.value;
@@ -406,79 +417,107 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                         key={option.value}
                         type="button"
                         onClick={() => setAccountIntent(option.value)}
-                        className={`flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border p-3 text-center text-xs font-semibold transition ${
-                          selected ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-300' : 'border-gray-300 bg-white text-gray-700 hover:border-violet-300'
+                        className={`flex min-h-14 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center text-[11px] font-semibold transition ${
+                          selected ? 'border-[#8a1cf7] bg-violet-50 text-[#8a1cf7] ring-1 ring-violet-200' : 'border-gray-300 bg-white text-gray-700 hover:border-violet-300'
                         }`}
                       >
-                        <Icon className="h-5 w-5" />
-                        {option.label}
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span>{option.label}</span>
                       </button>
                     );
                   })}
                 </div>
-                <p className="text-[11px] text-gray-500">All options will create a RentPeople account.</p>
               </div>
 
-              {/* Mobile Number Field */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-700">
-                  Mobile Number <span className="text-red-500">*</span>
-                </label>
-                <div className="flex rounded-xl border border-gray-300 overflow-hidden focus-within:border-purple-600 transition">
-                  <span className="bg-gray-50 border-r border-gray-300 px-3.5 flex items-center text-xs font-semibold text-gray-600">
-                    +91
-                  </span>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                    placeholder="Enter mobile number"
-                    maxLength={10}
-                    className="w-full bg-white px-3.5 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none"
-                  />
-                </div>
-                <p className="text-[11px] text-gray-400">IN India (10 digit number only)</p>
-              </div>
+<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+  {/* CITY */}
+  <div className="space-y-1.5">
+    <label className="text-xs font-semibold text-gray-700">
+      City <span className="text-red-500">*</span>
+    </label>
 
-              {/* Email Field */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-700">
-                  Email <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-600 transition"
-                  />
-                </div>
-              </div>
+    <div className="relative">
+      {/* Location Icon */}
+      <MapPin
+        className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+      />
 
-              {/* Password Field */}
+      <input
+        type="text"
+        value={city}
+        onChange={(event) => setCity(event.target.value)}
+        placeholder="Your city"
+        className="w-full rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-12 text-sm text-gray-800 placeholder-gray-400 transition focus:border-[#8a1cf7] focus:outline-none focus:ring-2 focus:ring-[#8a1cf7]/10"
+      />
+
+      {/* Detect Location */}
+      {(accountIntent === 'Become a RentCoPartner' ||
+        accountIntent === 'Both') && (
+        <button
+          type="button"
+          onClick={detectRegistrationCity}
+          disabled={detectingLocation}
+          title="Detect my location"
+          aria-label={detectingLocation ? 'Detecting your location' : 'Detect my location'}
+          className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] text-white shadow-sm transition hover:scale-105 disabled:cursor-wait disabled:opacity-60"
+        >
+          {detectingLocation ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <MapPin className="h-4 w-4" />
+          )}
+        </button>
+      )}
+    </div>
+
+    {/* Small detected status */}
+    {coordinates && city && (
+      <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-[#8a1cf7]">
+        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+        Location detected: {city}
+      </div>
+    )}
+    {!coordinates && (accountIntent === 'Become a RentCoPartner' || accountIntent === 'Both') && (
+      <p className="px-1 text-[11px] leading-4 text-gray-500">
+        Tap the pin and choose Allow when Chrome asks. If location is blocked, open the site settings beside the address bar, allow Location, then try again.
+      </p>
+    )}
+  </div>
+
+  {/* PINCODE */}
+  <div className="space-y-1.5">
+    <label className="text-xs font-semibold text-gray-700">
+      Pincode <span className="text-red-500">*</span>
+    </label>
+
+    <div className="relative">
+      <Hash
+        className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+      />
+
+      <input
+        type="text"
+        inputMode="numeric"
+        maxLength="6"
+        value={pincode}
+        onChange={(event) =>
+          setPincode(event.target.value.replace(/\D/g, ''))
+        }
+        placeholder="6-digit"
+        className="w-full rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-800 placeholder-gray-400 transition focus:border-[#8a1cf7] focus:outline-none focus:ring-2 focus:ring-[#8a1cf7]/10"
+      />
+    </div>
+  </div>
+</div>
+
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-700">
-                  Password <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password (min 6 characters)"
-                    className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-10 py-3 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-purple-600 transition"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+                <label className="text-xs font-semibold text-gray-700">Gender <span className="text-red-500">*</span></label>
+                <select value={gender} onChange={(event) => setGender(event.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 focus:border-[#8a1cf7] focus:outline-none">
+                  <option value="" disabled>Select gender</option>
+                  {GENDER_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Action Submit Button */}
@@ -486,7 +525,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                 type="button"
                 onClick={handlePrimaryAction}
                 disabled={loading}
-                className="w-full mt-2 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-semibold rounded-xl text-sm transition duration-200 shadow-md shadow-pink-500/20 disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full mt-2 py-3 bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] hover:opacity-95 text-white font-semibold rounded-xl text-sm transition duration-200 shadow-md shadow-violet-500/20 disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 {primaryLabel()}
@@ -497,9 +536,9 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
           {/* Footer Terms Note */}
           <p className="text-center text-[11px] text-gray-500 pt-2">
             By continuing, you agree to our{' '}
-            <a href="#terms" className="text-purple-600 hover:underline">Terms</a>{' '}
+            <a href="#terms" className="text-[#8a1cf7] hover:underline">Terms</a>{' '}
             and{' '}
-            <a href="#privacy" className="text-purple-600 hover:underline">Privacy Policy</a>
+            <a href="#privacy" className="text-[#8a1cf7] hover:underline">Privacy Policy</a>
           </p>
 
         </div>
