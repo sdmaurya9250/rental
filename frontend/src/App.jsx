@@ -16,7 +16,15 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsAndConditionsPage from './pages/TermsAndConditionsPage';
 import RefundPolicyPage from './pages/RefundPolicyPage';
 import HelpPage from './pages/HelpPage';
-import { isAuthenticated } from './auth/auth';
+import { getStoredUser, isAuthenticated } from './auth/auth';
+
+function BrowseRoute() {
+  const user = getStoredUser();
+  const role = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
+  const canBrowse = ['both', 'find a rentpeople', 'find a rentcopartner', 'find'].includes(role);
+  return canBrowse ? <Browse /> : <Navigate to="/dashboard" replace />;
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -29,7 +37,7 @@ function App() {
         <Route path="/" element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <Home />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/browse" element={<Browse />} />
+          <Route path="/browse" element={<BrowseRoute />} />
           <Route path="/bookings" element={<BookingsList />} />
           <Route path="/search" element={<SearchResultsPage />} />
           <Route path="/people/:personId" element={<ProfilePage />} />

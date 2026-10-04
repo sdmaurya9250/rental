@@ -55,6 +55,8 @@ export default function TopBar({ onMenuToggle }) {
   const displayName = user?.fullName || user?.full_name || user?.name || user?.username || user?.email || 'My account';
   const initials = displayName === 'My account' ? 'M' : displayName.charAt(0).toUpperCase();
   const profileImage = user?.image || user?.profile_image || user?.avatar_url || user?.photo || '';
+  const accountRole = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
+  const isBecomeOnly = ['become a rentpeople', 'become a rentcopartner', 'become'].includes(accountRole);
 
   function submitSearch(event) {
     event.preventDefault();
@@ -134,8 +136,8 @@ return (
       <Menu className="h-6 w-6 text-violet-700" />
     </button>
 
-    {/* Center / Search & Location Form */}
-    <form
+    {/* Search and location are only relevant for people looking for a companion. */}
+    {!isBecomeOnly && <form
       onSubmit={submitSearch}
       className="flex min-w-0 flex-1 items-center gap-2 lg:gap-3"
     >
@@ -327,10 +329,10 @@ return (
           </div>
         )}
       </div>
-    </form>
+    </form>}
 
     {/* Right Side: Profile Avatar */}
-    <div className="flex shrink-0 items-center">
+    <div className="ml-auto flex shrink-0 items-center">
       <button
         type="button"
         onClick={() => navigate('/my-profile')}
