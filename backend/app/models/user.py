@@ -2,6 +2,16 @@ from pydantic import BaseModel, Field
 from typing import Literal, List, Optional
 
 
+# class RegisterRequest(BaseModel):
+#     country: str
+#     city: str
+#     pincode: str = Field(..., min_length=6, max_length=6)
+#     gender: Literal["Male", "Female", "Other"]
+#     want_to: Literal["Find a RentPeople", "Become a RentPeople", "Both"]
+#     mobile: str = Field(..., min_length=10, max_length=10)
+#     email: str
+#     password: str = Field(..., min_length=6)
+
 class RegisterRequest(BaseModel):
     country: str
     city: str
@@ -11,6 +21,9 @@ class RegisterRequest(BaseModel):
     mobile: str = Field(..., min_length=10, max_length=10)
     email: str
     password: str = Field(..., min_length=6)
+    # NEW — optional at register (frontend can send after geolocation)
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 
 class LoginRequest(BaseModel):
