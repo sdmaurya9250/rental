@@ -29,7 +29,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<Login />} />
+        {/* <Route path="/login" element={<Login />} /> */}
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
         <Route path="/refund-policy" element={<RefundPolicyPage />} />

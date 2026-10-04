@@ -226,6 +226,14 @@ export function approveBooking(bookingId) {
   return request(`/api/bookings/${encodeURIComponent(bookingId)}/approve`, { method: 'POST', auth: true });
 }
 
+export function verifyBookingOtp(bookingId, otp) {
+  return request(`/api/bookings/${encodeURIComponent(bookingId)}/verify-otp`, {
+    method: 'POST',
+    body: { otp },
+    auth: true,
+  });
+}
+
 export function rejectBooking(bookingId, rejectionMessage = '') {
   return request(`/api/bookings/${encodeURIComponent(bookingId)}/reject`, {
     method: 'POST',
