@@ -2,6 +2,24 @@ import { approveBooking, createBooking, getConversationMessages, getConversation
 
 const API_BASE_URL = 'https://rental-backend.kudoo-live.workers.dev/api/people';
 const API_ROOT_URL = 'https://rental-backend.kudoo-live.workers.dev/api';
+const LOCATION_PREFERENCE_KEY = 'rp_location_preference';
+
+export function getLocationPreference() {
+  if (typeof window === 'undefined') return null;
+  try {
+    return JSON.parse(window.localStorage.getItem(LOCATION_PREFERENCE_KEY) || 'null');
+  } catch {
+    return null;
+  }
+}
+
+export function saveLocationPreference(preference) {
+  if (typeof window !== 'undefined') window.localStorage.setItem(LOCATION_PREFERENCE_KEY, JSON.stringify(preference));
+}
+
+export function clearLocationPreference() {
+  if (typeof window !== 'undefined') window.localStorage.removeItem(LOCATION_PREFERENCE_KEY);
+}
 
 async function requestPeople(path = '') {
   const response = await fetch(`${API_BASE_URL}${path}`);

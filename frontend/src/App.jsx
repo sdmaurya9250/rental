@@ -12,12 +12,20 @@ import SearchResultsPage from './pages/SearchResultsPage';
 import MyProfilePage from './pages/MyProfilePage';
 import DashboardPage from './pages/DashboardPage';
 import WalletPage from './pages/WalletPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsAndConditionsPage from './pages/TermsAndConditionsPage';
+import RefundPolicyPage from './pages/RefundPolicyPage';
+import HelpPage from './pages/HelpPage';
 import { isAuthenticated } from './auth/auth';
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms-and-conditions" element={<TermsAndConditionsPage />} />
+        <Route path="/refund-policy" element={<RefundPolicyPage />} />
+        <Route path="/help" element={<HelpPage />} />
         <Route path="/" element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <Home />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardPage />} />

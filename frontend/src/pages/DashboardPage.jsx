@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, CalendarDays, Camera, Coffee, Dumbbell, Heart, MapPin, MessageCircle, Music2, Plane, Search, ShoppingBag, Sparkles, Theater, Users } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import FeaturePage from '../components/FeaturePage';
-import { fetchBookingRecords, fetchConversations, fetchPeople, formatPersonPrice, getPersonPrice } from './finderApi';
+import { fetchBookingRecords, fetchConversations, fetchPeople, formatPersonPrice, getLocationPreference, getPersonPrice } from './finderApi';
 import { getMyProfile, getStoredUser } from '../auth/auth';
 
 const shortcuts = [
@@ -22,7 +22,7 @@ function getList(result, key) {
 }
 
 function getName(item) {
-  return item?.name || item?.fullName || item?.full_name || item?.person_name || item?.other_user?.name || item?.participant?.name || item?.user?.name || 'RentPeople member';
+  return item?.name || item?.fullName || item?.full_name || item?.person_name || item?.other_user?.name || item?.participant?.name || item?.user?.name || 'RentCoPartner member';
 }
 
 function getImage(item) {
@@ -65,19 +65,81 @@ function PersonCard({ person }) {
   const tags = parseArray(person.tags || person.interests).slice(0, 2);
   const price = getPersonPrice(person);
   return (
-    <article className="min-w-0 overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <Link to={`/people/${person.id}`} className="relative block aspect-[4/3] overflow-hidden bg-violet-100">
-        <img src={image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop'} alt={name} className="h-full w-full object-cover object-center" loading="lazy" />
-        <span className="absolute right-2 top-2 rounded-full bg-white/90 p-1.5 text-violet-500"><Heart className="h-3.5 w-3.5" /></span>
-      </Link>
-      <div className="p-3">
-        <div className="flex items-center justify-between gap-2"><h3 className="truncate text-sm font-bold text-[#211a35]">{name}{person.age ? `, ${person.age}` : ''}</h3><span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" /></div>
-        <p className="mt-1 flex items-center gap-1 truncate text-[11px] text-[#827b95]"><MapPin className="h-3 w-3 shrink-0" />{person.location || person.city || 'India'}</p>
-        <p className="mt-2 text-sm font-extrabold text-[#211a35]">{formatPersonPrice(price)}<span className="text-[10px] font-medium text-[#827b95]">/hour</span></p>
-        <div className="mt-2 flex min-h-5 flex-wrap gap-1">{tags.map((tag) => <span key={tag} className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700">{tag}</span>)}</div>
-        <Link to={`/people/${person.id}`} className="mt-3 block rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-500 px-3 py-2 text-center text-xs font-semibold text-white">View profile</Link>
-      </div>
-    </article>
+<article className="min-w-0 overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+  {/* Image */}
+  <Link
+    to={`/people/${person.id}`}
+    className="relative block aspect-[4/3] overflow-hidden bg-violet-100"
+  >
+    <img
+      src={
+        image ||
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop'
+      }
+      alt={name}
+      className="h-full w-full object-cover object-center"
+      loading="lazy"
+    />
+
+    {/* Favorite */}
+    <span className="absolute right-2 top-2 rounded-full bg-white/90 p-1.5 text-violet-500">
+      <Heart className="h-3.5 w-3.5" />
+    </span>
+  </Link>
+
+  {/* Card Content */}
+  <div className="p-3">
+    {/* Name + Online */}
+    <div className="flex items-center justify-between gap-2">
+      <h3 className="truncate text-sm font-bold text-[#211a35]">
+        {name}
+        {person.age ? `, ${person.age}` : ''}
+      </h3>
+
+      <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
+    </div>
+
+    {/* City + Price - Same Line */}
+    <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
+      {/* City */}
+      <p className="flex min-w-0 flex-1 items-center gap-1 truncate text-[11px] text-[#827b95]">
+        <MapPin className="h-3 w-3 shrink-0" />
+
+        <span className="truncate">
+          {person.location || person.city || 'India'}
+        </span>
+      </p>
+
+      {/* Price */}
+      <p className="shrink-0 whitespace-nowrap text-sm font-extrabold text-[#211a35]">
+        {formatPersonPrice(price)}
+        <span className="text-[10px] font-medium text-[#827b95]">
+          /hour
+        </span>
+      </p>
+    </div>
+
+    {/* Tags - Maximum 2 */}
+    <div className="mt-2 flex min-h-5 flex-wrap gap-1">
+      {tags.slice(0, 2).map((tag) => (
+        <span
+          key={tag}
+          className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700"
+        >
+          {tag}
+        </span>
+      ))}
+    </div>
+
+    {/* View Profile */}
+    <Link
+      to={`/people/${person.id}`}
+      className="mt-3 block rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-500 px-3 py-2 text-center text-xs font-semibold text-white"
+    >
+      View profile
+    </Link>
+  </div>
+</article>
   );
 }
 
@@ -94,7 +156,17 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let active = true;
-    fetchPeople().then((items) => { if (active) setPeople(items); }).catch((error) => { if (active) setLoadError(error.message || 'Unable to load people.'); }).finally(() => { if (active) setLoadingPeople(false); });
+    const location = getLocationPreference();
+    const locationQuery = location?.mode === 'near' && location.lat != null && location.lng != null
+      ? {
+          lat: location.lat,
+          lng: location.lng,
+          radius_km: 500,
+          city: location.city || storedUser.city || storedUser.location,
+          user_id: storedUser.id || storedUser.user_id || storedUser.userId,
+        }
+      : location?.city ? { city: location.city } : {};
+    fetchPeople(locationQuery).then((items) => { if (active) setPeople(items); }).catch((error) => { if (active) setLoadError(error.message || 'Unable to load people.'); }).finally(() => { if (active) setLoadingPeople(false); });
     getMyProfile().then((result) => { if (active) setProfile({ ...storedUser, ...(result?.profile || result || {}) }); }).catch(() => {});
     fetchBookingRecords().then((result) => { if (active) setBookings(getList(result, 'bookings')); }).catch(() => {});
     fetchConversations().then((result) => { if (active) setConversations(getList(result, 'conversations')); }).catch(() => {});
@@ -104,16 +176,17 @@ export default function DashboardPage() {
   const role = String(profile.want_to || profile.wantTo || profile.accountIntent || storedUser.want_to || '').toLowerCase();
   const completion = useMemo(() => completionFor(profile, role), [profile, role]);
   const displayName = profile.fullName || profile.full_name || profile.name || profile.email?.split('@')[0] || 'there';
+  const selectedCity = getLocationPreference()?.city || profile.city;
   const sortedPeople = useMemo(() => [...people].sort((a, b) => getPersonPrice(a) - getPersonPrice(b)), [people]);
   const popularPeople = useMemo(() => {
-    const city = String(profile.city || '').trim().toLowerCase();
+    const city = String(selectedCity || '').trim().toLowerCase();
     if (!city) return people.slice(0, 8);
     return [...people].sort((a, b) => {
       const aNearby = String(a.location || a.city || '').toLowerCase().includes(city) ? 1 : 0;
       const bNearby = String(b.location || b.city || '').toLowerCase().includes(city) ? 1 : 0;
       return bNearby - aNearby;
     }).slice(0, 8);
-  }, [people, profile.city]);
+  }, [people, selectedCity]);
   const recommendedPeople = sortedPeople.slice(0, 8);
   const upcomingBooking = bookings.find((booking) => !['completed', 'cancelled', 'rejected'].includes(String(booking.booking_status || '').toLowerCase()));
   const profileImage = getImage(profile);
@@ -125,7 +198,7 @@ export default function DashboardPage() {
 
   return (
     <FeaturePage>
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="min-w-0 space-y-5">
 
 
@@ -138,19 +211,19 @@ export default function DashboardPage() {
             {loadingPeople && <p className="rounded-xl bg-white p-5 text-sm text-[#706a80]">Loading people…</p>}
             {loadError && <p role="alert" className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">{loadError}</p>}
             {!loadingPeople && !loadError && popularPeople.length === 0 && <p className="rounded-xl bg-white p-5 text-sm text-[#706a80]">No profiles are available yet.</p>}
-            {!loadingPeople && !loadError && popularPeople.length > 0 && <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">{popularPeople.slice(0, 4).map((person) => <PersonCard key={person.id} person={person} />)}</div>}
+            {!loadingPeople && !loadError && popularPeople.length > 0 && <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{popularPeople.slice(0, 4).map((person) => <PersonCard key={person.id} person={person} />)}</div>}
           </section>
 
           <section>
             <div className="mb-3 flex items-end justify-between gap-2"><div><h2 className="text-lg font-extrabold text-[#241b39]">Recommended for you</h2><p className="text-xs text-[#827b95]">Explore more companions and services.</p></div><Link to="/browse" className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-violet-700">View all <ArrowRight className="h-3.5 w-3.5" /></Link></div>
-            {recommendedPeople.length > 0 && <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">{recommendedPeople.slice(4, 8).map((person) => <PersonCard key={person.id} person={person} />)}</div>}
+            {recommendedPeople.length > 0 && <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{recommendedPeople.slice(4, 8).map((person) => <PersonCard key={person.id} person={person} />)}</div>}
           </section>
         </div>
 
-        <aside className="space-y-4 xl:sticky xl:top-20 xl:self-start">
+        <aside className="min-w-0 space-y-4 lg:sticky lg:top-20 lg:self-start">
           <section className="rounded-2xl border border-violet-100 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between"><h2 className="text-sm font-extrabold text-[#241b39]">Your profile</h2><Sparkles className="h-4 w-4 text-violet-500" /></div>
-            <div className="mt-3 flex items-center gap-3"><span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-100 text-lg font-bold text-violet-700">{profileImage ? <img src={profileImage} alt={displayName} className="h-full w-full object-cover" /> : displayName.charAt(0).toUpperCase()}</span><div className="min-w-0"><p className="truncate text-xs font-bold">{displayName}</p><p className="mt-1 text-[10px] text-[#827b95]">RentPeople member</p></div></div>
+            <div className="mt-3 flex items-center gap-3"><span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-100 text-lg font-bold text-violet-700">{profileImage ? <img src={profileImage} alt={displayName} className="h-full w-full object-cover" /> : displayName.charAt(0).toUpperCase()}</span><div className="min-w-0"><p className="truncate text-xs font-bold">{displayName}</p><p className="mt-1 text-[10px] text-[#827b95]">RentCoPartner member</p></div></div>
             <div className="mt-3 rounded-full bg-emerald-50 px-3 py-2 text-center text-[11px] font-bold text-emerald-700">● Profile complete ({completion}%)</div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-violet-100"><div className="h-full rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500" style={{ width: `${completion}%` }} /></div>
             <Link to="/my-profile" className="mt-3 block rounded-lg bg-violet-50 px-3 py-2 text-center text-xs font-semibold text-violet-700 hover:bg-violet-100">Edit profile <ArrowRight className="ml-1 inline h-3.5 w-3.5" /></Link>

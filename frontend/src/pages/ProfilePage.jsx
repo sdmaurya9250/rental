@@ -327,7 +327,7 @@ function ProfileDetails({ person }) {
                 <div className="p-2 rounded-lg bg-white text-purple-600 shadow-xs"><Briefcase className="w-4 h-4" /></div>
                 <div>
                   <p className="text-[10px] text-gray-400 font-medium">Role</p>
-                  <p className="text-xs font-semibold text-gray-700">{person.want_to || 'Become a RentPeople'}</p>
+                  <p className="text-xs font-semibold text-gray-700">{person.want_to || 'Become a RentCoPartner'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -532,9 +532,9 @@ function ProfileDetails({ person }) {
               </label>
 
               <label className="block text-xs font-semibold text-gray-700">Special requirements
-                <textarea rows="2" value={specialRequirements} onChange={(event) => setSpecialRequirements(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-xs font-normal focus:ring-2 focus:ring-purple-500 outline-none" placeholder="Anything the RentPeople should know before meeting?" />
+                <textarea rows="2" value={specialRequirements} onChange={(event) => setSpecialRequirements(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-xs font-normal focus:ring-2 focus:ring-purple-500 outline-none" placeholder="Anything the RentCoPartner should know before meeting?" />
               </label>
-              <label className="block text-xs font-semibold text-gray-700">Note to the RentPeople
+              <label className="block text-xs font-semibold text-gray-700">Note to the RentCoPartner
                 <textarea rows="2" value={customerNote} onChange={(event) => setCustomerNote(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-xs font-normal focus:ring-2 focus:ring-purple-500 outline-none" placeholder="Optional note" />
               </label>
             </div>

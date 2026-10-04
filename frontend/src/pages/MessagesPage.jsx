@@ -134,7 +134,7 @@ export default function MessagesPage() {
 
   if (!isAuthenticated()) {
     return (
-      <FeaturePage title="Messages" subtitle="Finders and RentPeople can chat here.">
+      <FeaturePage title="Messages" subtitle="Finders and RentCoPartner can chat here.">
         <p className="text-sm text-amber-700">
           {error} <Link to="/login" className="font-semibold underline">Sign in</Link>
         </p>
@@ -143,7 +143,7 @@ export default function MessagesPage() {
   }
 
   return (
-    <FeaturePage title="Messages" subtitle="Finders and RentPeople can chat with each other here.">
+    <FeaturePage title="Messages" subtitle="Finders and RentCoPartner can chat with each other here.">
       <div className="grid h-[min(76vh,750px)] min-h-[520px] max-w-6xl overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-lg shadow-violet-100/50 md:grid-cols-[minmax(250px,0.8fr)_minmax(0,1.5fr)]">
         
         {/* Left Sidebar */}
