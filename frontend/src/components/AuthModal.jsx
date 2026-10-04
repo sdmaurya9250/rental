@@ -16,8 +16,8 @@ const GENDER_OPTIONS = [
 ];
 
 const INTENT_OPTIONS = [
-  { value: 'Find a RentCoPartner', label: 'Find a RentCoPartner', icon: Search },
-  { value: 'Become a RentCoPartner', label: 'Become a RentCoPartner', icon: UserPlus },
+  { value: 'Find a RentPeople', label: 'Find a RentCoPartner', icon: Search },
+  { value: 'Become a RentPeople', label: 'Become a RentCoPartner', icon: UserPlus },
   { value: 'Both', label: 'Both', icon: Users },
 ];
 
@@ -39,7 +39,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
   const [coordinates, setCoordinates] = useState(null);
   const [pincode, setPincode] = useState('');
   const [gender, setGender] = useState(''); // now holds 'Male' | 'Female' | 'Other'
-  const [accountIntent, setAccountIntent] = useState('Find a RentCoPartner');
+  const [accountIntent, setAccountIntent] = useState('Find a RentPeople');
   const [detectingLocation, setDetectingLocation] = useState(false);
 
   // OTP flow state
@@ -142,7 +142,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
       setLoading(true);
       // Keys and values here must match RegisterRequest exactly:
       // country, city, pincode, gender ('Male'|'Female'|'Other'),
-      // want_to ('Find a RentCoPartner'|'Become a RentCoPartner'|'Both'),
+      // want_to ('Find a RentPeople'|'Become a RentPeople'|'Both'),
       // mobile, email, password
       const data = await registerUser({
         country,
@@ -451,7 +451,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
       />
 
       {/* Detect Location */}
-      {(accountIntent === 'Become a RentCoPartner' ||
+      {(accountIntent === 'Become a RentPeople' ||
         accountIntent === 'Both') && (
         <button
           type="button"
@@ -477,7 +477,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
         Location detected: {city}
       </div>
     )}
-    {!coordinates && (accountIntent === 'Become a RentCoPartner' || accountIntent === 'Both') && (
+    {!coordinates && (accountIntent === 'Become a RentPeople' || accountIntent === 'Both') && (
       <p className="px-1 text-[11px] leading-4 text-gray-500">
         Tap the pin and choose Allow when Chrome asks. If location is blocked, open the site settings beside the address bar, allow Location, then try again.
       </p>
