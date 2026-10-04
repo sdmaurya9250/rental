@@ -123,3 +123,6 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str = Field(..., min_length=6)
+
+class VerifyOtpRequest(BaseModel):
+    otp: str = Field(..., min_length=6, max_length=6)
