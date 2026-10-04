@@ -314,6 +314,59 @@ def _generate_otp() -> str:
     return f"{random.randint(100000, 999999)}"
 
 
+# def _format_booking(row: dict, current_user_id: str) -> dict:
+#     is_incoming = row.get("rent_person_id") == current_user_id
+#     direction = "incoming" if is_incoming else "outgoing"
+#
+#     if is_incoming:
+#         person_name = row.get("customer_name") or "Customer"
+#         person_image = row.get("customer_image") or ""
+#     else:
+#         person_name = row.get("rent_person_name") or "RentPeople"
+#         person_image = row.get("rent_person_image") or ""
+#
+#     status_val = row.get("status") or "pending"
+#     otp = row.get("otp") or ""
+#     otp_verified = bool(row.get("otp_verified", 0))
+#
+#     # After approve, until verified:
+#     # - Finder (outgoing) SEES the OTP
+#     # - Provider (incoming) ENTERS the OTP
+#     show_otp = status_val == "approved" and bool(otp) and not otp_verified
+#
+#     return {
+#         "id": row["id"],
+#         "direction": direction,
+#         "booking_status": status_val,
+#         "booking_date": row.get("booking_date"),
+#         "start_time": row.get("start_time"),
+#         "end_time": row.get("end_time"),
+#         "duration_minutes": row.get("duration_minutes") or 0,
+#         "location_type": row.get("location_type"),
+#         "location": row.get("location") or "",
+#         "timezone": row.get("timezone") or "Asia/Kolkata",
+#         "service_id": row.get("service_id"),
+#         "service_name": row.get("service_name") or "Service",
+#         "total_amount": row.get("total_amount") or 0,
+#         "price": row.get("price") or 0,
+#         "platform_fee": row.get("platform_fee") or 0,
+#         "special_requirements": row.get("special_requirements") or "",
+#         "customer_note": row.get("customer_note") or "",
+#         "rejection_message": row.get("rejection_message") or "",
+#         "cancellation_message": row.get("cancellation_message") or "",
+#         "person_name": person_name,
+#         "person_image": person_image,
+#         "customer_id": row.get("customer_id"),
+#         "rent_person_id": row.get("rent_person_id"),
+#         "created_at": row.get("created_at"),
+#         # OTP
+#         "otp": otp if show_otp else None,
+#         "otp_verified": otp_verified,
+#         "show_otp": (not is_incoming) and show_otp,      # finder displays OTP
+#         "needs_otp_entry": is_incoming and show_otp,     # provider enters OTP
+#     }
+
+
 def _format_booking(row: dict, current_user_id: str) -> dict:
     is_incoming = row.get("rent_person_id") == current_user_id
     direction = "incoming" if is_incoming else "outgoing"
@@ -327,11 +380,9 @@ def _format_booking(row: dict, current_user_id: str) -> dict:
 
     status_val = row.get("status") or "pending"
     otp = row.get("otp") or ""
-    otp_verified = bool(row.get("otp_verified", 0))
+    otp_verified = bool(row.get("otp_verified", 0)) or status_val == "completed"
 
-    # After approve, until verified:
-    # - Finder (outgoing) SEES the OTP
-    # - Provider (incoming) ENTERS the OTP
+    # OTP only while approved and not yet verified/completed
     show_otp = status_val == "approved" and bool(otp) and not otp_verified
 
     return {
@@ -362,8 +413,8 @@ def _format_booking(row: dict, current_user_id: str) -> dict:
         # OTP
         "otp": otp if show_otp else None,
         "otp_verified": otp_verified,
-        "show_otp": (not is_incoming) and show_otp,      # finder displays OTP
-        "needs_otp_entry": is_incoming and show_otp,     # provider enters OTP
+        "show_otp": (not is_incoming) and show_otp,   # finder displays OTP
+        "needs_otp_entry": is_incoming and show_otp,  # provider enters OTP
     }
 
 
@@ -577,6 +628,61 @@ async def approve_booking(
     }
 
 
+# @router.post("/bookings/{booking_id}/verify-otp")
+# async def verify_booking_otp(
+#     booking_id: str,
+#     data: VerifyOtpRequest,
+#     request: Request,
+#     current_user: dict = Depends(get_current_user),
+# ):
+#     """RentPeople enters the 6-digit OTP shown to the finder."""
+#     db = request.scope["env"].DB
+#     user_id = current_user["id"]
+#
+#     row = await db.prepare(
+#         "SELECT * FROM bookings WHERE id = ?"
+#     ).bind(booking_id).first()
+#
+#     if not row:
+#         raise HTTPException(status_code=404, detail="Booking not found")
+#
+#     booking = dict(row)
+#
+#     if booking["rent_person_id"] != user_id:
+#         raise HTTPException(
+#             status_code=403,
+#             detail="Only the RentPeople can verify the OTP",
+#         )
+#
+#     if booking.get("status") != "approved":
+#         raise HTTPException(
+#             status_code=400,
+#             detail="Booking must be approved before OTP verification",
+#         )
+#
+#     if int(booking.get("otp_verified") or 0) == 1:
+#         return {
+#             "id": booking_id,
+#             "booking_status": "approved",
+#             "otp_verified": True,
+#             "message": "OTP already verified",
+#         }
+#
+#     if not booking.get("otp") or str(data.otp).strip() != str(booking["otp"]):
+#         raise HTTPException(status_code=400, detail="Invalid OTP")
+#
+#     await db.prepare(
+#         "UPDATE bookings SET otp_verified = 1 WHERE id = ?"
+#     ).bind(booking_id).run()
+#
+#     return {
+#         "id": booking_id,
+#         "booking_status": "approved",
+#         "otp_verified": True,
+#         "message": "OTP verified successfully",
+#     }
+
+
 @router.post("/bookings/{booking_id}/verify-otp")
 async def verify_booking_otp(
     booking_id: str,
@@ -584,7 +690,7 @@ async def verify_booking_otp(
     request: Request,
     current_user: dict = Depends(get_current_user),
 ):
-    """RentPeople enters the 6-digit OTP shown to the finder."""
+    """RentPeople enters OTP → mark booking completed."""
     db = request.scope["env"].DB
     user_id = current_user["id"]
 
@@ -603,32 +709,36 @@ async def verify_booking_otp(
             detail="Only the RentPeople can verify the OTP",
         )
 
+    if booking.get("status") == "completed":
+        return {
+            "id": booking_id,
+            "booking_status": "completed",
+            "otp_verified": True,
+            "message": "Booking already completed",
+        }
+
     if booking.get("status") != "approved":
         raise HTTPException(
             status_code=400,
             detail="Booking must be approved before OTP verification",
         )
 
-    if int(booking.get("otp_verified") or 0) == 1:
-        return {
-            "id": booking_id,
-            "booking_status": "approved",
-            "otp_verified": True,
-            "message": "OTP already verified",
-        }
-
     if not booking.get("otp") or str(data.otp).strip() != str(booking["otp"]):
         raise HTTPException(status_code=400, detail="Invalid OTP")
 
     await db.prepare(
-        "UPDATE bookings SET otp_verified = 1 WHERE id = ?"
-    ).bind(booking_id).run()
+        """
+        UPDATE bookings
+        SET otp_verified = 1, status = ?
+        WHERE id = ?
+        """
+    ).bind("completed", booking_id).run()
 
     return {
         "id": booking_id,
-        "booking_status": "approved",
+        "booking_status": "completed",
         "otp_verified": True,
-        "message": "OTP verified successfully",
+        "message": "OTP verified successfully. Booking completed.",
     }
 
 
