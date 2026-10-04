@@ -2,7 +2,7 @@ import { Camera, ChevronDown, MapPin, Plus, Save, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FeaturePage from '../components/FeaturePage';
-import { getMyProfile, getStoredUser, isAuthenticated, updateMyProfile } from '../auth/auth';
+import { getMyProfile, getStoredUser, isAuthenticated, updateMyProfile, uploadProfilePhoto } from '../auth/auth';
 import { fetchPeople, getCurrentLocation, reverseGeocode } from './finderApi';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -96,7 +96,7 @@ function mapApiProfile(data, user = {}) {
     gender: gender === 'male' ? 'Male' : gender === 'female' ? 'Female' : 'Other',
     price: Number(data.price) || 0,
     bio: data.bio || '',
-    image: data.image || '',
+    image: data.image || data.profile_image || data.avatar_url || data.photo || '',
     isAvailable: data.isAvailable ?? true,
     languages: parseList(data.languages),
     availableDays: availability.days || [],
@@ -104,15 +104,6 @@ function mapApiProfile(data, user = {}) {
     services,
     gallery: parseList(data.gallery),
   };
-}
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 function uid(prefix) {
@@ -182,6 +173,8 @@ export default function MyProfilePage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [languageDraft, setLanguageDraft] = useState('');
   const [serviceDraft, setServiceDraft] = useState({ name: '', price: '' });
@@ -269,13 +262,22 @@ export default function MyProfilePage() {
     }
   };
 
-  const uploadImage = (event) => {
+  const uploadImage = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setProfile((current) => ({ ...current, image: String(reader.result) }));
-    reader.readAsDataURL(file);
     event.target.value = '';
+    setUploadingAvatar(true);
+    setErrorMsg('');
+    try {
+      const result = await uploadProfilePhoto(file, 'avatar');
+      const image = result.image || (await getMyProfile())?.image;
+      if (!image) throw new Error('The avatar was uploaded, but the API did not return its image URL.');
+      setProfile((current) => ({ ...current, image }));
+    } catch (error) {
+      setErrorMsg(error.message || 'Unable to upload your profile image.');
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const capturePhoto = () => {
@@ -288,17 +290,53 @@ export default function MyProfilePage() {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
-    setProfile((current) => ({ ...current, image: canvas.toDataURL('image/jpeg', 0.9) }));
     setCameraOpen(false);
+    canvas.toBlob(async (fileBlob) => {
+      if (!fileBlob) {
+        setErrorMsg('Could not prepare the captured photo for upload.');
+        return;
+      }
+      setUploadingAvatar(true);
+      setErrorMsg('');
+      try {
+        const result = await uploadProfilePhoto(new File([fileBlob], 'avatar.jpg', { type: 'image/jpeg' }), 'avatar');
+        const image = result.image || (await getMyProfile())?.image;
+        if (!image) throw new Error('The avatar was uploaded, but the API did not return its image URL.');
+        setProfile((current) => ({ ...current, image }));
+      } catch (error) {
+        setErrorMsg(error.message || 'Unable to upload your profile image.');
+      } finally {
+        setUploadingAvatar(false);
+      }
+    }, 'image/jpeg', 0.9);
   };
 
   const uploadGalleryImages = async (event) => {
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
-    const room = MAX_GALLERY_IMAGES - profile.gallery.length;
-    const dataUrls = await Promise.all(files.slice(0, room).map(readFileAsDataUrl));
-    setProfile({ ...profile, gallery: [...profile.gallery, ...dataUrls] });
     event.target.value = '';
+    const room = MAX_GALLERY_IMAGES - profile.gallery.length;
+    if (room <= 0) return;
+    setUploadingGallery(true);
+    setErrorMsg('');
+    try {
+      let uploadedGallery = profile.gallery;
+      for (const file of files.slice(0, room)) {
+        const result = await uploadProfilePhoto(file, 'gallery');
+        if (Array.isArray(result.gallery)) {
+          uploadedGallery = result.gallery;
+        } else if (result.url) {
+          uploadedGallery = [...uploadedGallery, result.url];
+        } else {
+          throw new Error('The photo uploaded, but the API did not return its URL.');
+        }
+      }
+      setProfile((current) => ({ ...current, gallery: uploadedGallery }));
+    } catch (error) {
+      setErrorMsg(error.message || 'Unable to upload gallery photos.');
+    } finally {
+      setUploadingGallery(false);
+    }
   };
 
   const removeGalleryImage = (index) => {
@@ -399,10 +437,11 @@ export default function MyProfilePage() {
       {loadingProfile ? <p className="text-sm text-[#706a80]">Loading your profile…</p> : errorMsg && !profile.id ? <p role="alert" className="text-sm text-red-600">{errorMsg}</p> : (
       <div className="grid max-w-5xl gap-6 lg:grid-cols-[260px_1fr]">
         <aside className="h-fit rounded-2xl border border-[#e7e1f2] bg-white p-5 text-center shadow-sm">
+          {errorMsg && <p role="alert" className="mb-3 text-xs text-red-600">{errorMsg}</p>}
           {profile.image ? <img src={profile.image} alt="Your profile" className="mx-auto h-36 w-36 rounded-full object-cover ring-4 ring-violet-100" /> : <div className="mx-auto grid h-36 w-36 place-items-center rounded-full bg-violet-100 text-3xl font-bold text-violet-500">{profile.fullName?.charAt(0)?.toUpperCase() || '?'}</div>}
           <label className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-violet-200 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50">
             <Camera className="h-4 w-4" />
-            Upload image
+            {uploadingAvatar ? 'Uploading…' : 'Upload image'}
             <input type="file" accept="image/*" onChange={uploadImage} className="hidden" />
           </label>
           <button type="button" onClick={() => { setCameraError(''); setCameraOpen(true); }} className="mt-2 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"><Camera className="h-4 w-4" />Open camera</button>
@@ -657,7 +696,7 @@ export default function MyProfilePage() {
               {profile.gallery.length < MAX_GALLERY_IMAGES && (
                 <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-[#e4dff0] text-[#706a80] hover:border-violet-300 hover:text-violet-600">
                   <Camera className="h-5 w-5" />
-                  <span className="text-xs font-medium">Add photos</span>
+                  <span className="text-xs font-medium">{uploadingGallery ? 'Uploading…' : 'Add photos'}</span>
                   <input type="file" accept="image/*" multiple onChange={uploadGalleryImages} className="hidden" />
                 </label>
               )}
