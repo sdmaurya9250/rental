@@ -126,3 +126,7 @@ class ResetPasswordRequest(BaseModel):
 
 class VerifyOtpRequest(BaseModel):
     otp: str = Field(..., min_length=6, max_length=6)
+
+class WalletTopUpRequest(BaseModel):
+    amount: float = Field(..., ge=100)
+    method: Optional[str] = "UPI"  # UPI | Card | etc.
