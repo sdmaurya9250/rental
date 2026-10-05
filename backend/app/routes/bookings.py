@@ -1,9 +1,20 @@
 # from fastapi import APIRouter, Request, Depends, HTTPException, status
-# from models.user import BookingCreate, BookingReject
+# from models.user import BookingCreate, BookingReject, VerifyOtpRequest
 # from routes.profile import get_current_user
+# from pydantic import BaseModel, Field
+# from typing import Optional
 # import secrets
+# import random
 #
 # router = APIRouter()
+#
+#
+# class VerifyOtpRequest(BaseModel):
+#     otp: str = Field(..., min_length=6, max_length=6)
+#
+#
+# def _generate_otp() -> str:
+#     return f"{random.randint(100000, 999999)}"
 #
 #
 # def _format_booking(row: dict, current_user_id: str) -> dict:
@@ -17,10 +28,17 @@
 #         person_name = row.get("rent_person_name") or "RentPeople"
 #         person_image = row.get("rent_person_image") or ""
 #
+#     status_val = row.get("status") or "pending"
+#     otp = row.get("otp") or ""
+#     otp_verified = bool(row.get("otp_verified", 0)) or status_val == "completed"
+#
+#     # OTP only while approved and not yet verified/completed
+#     show_otp = status_val == "approved" and bool(otp) and not otp_verified
+#
 #     return {
 #         "id": row["id"],
 #         "direction": direction,
-#         "booking_status": row.get("status") or "pending",
+#         "booking_status": status_val,
 #         "booking_date": row.get("booking_date"),
 #         "start_time": row.get("start_time"),
 #         "end_time": row.get("end_time"),
@@ -42,6 +60,11 @@
 #         "customer_id": row.get("customer_id"),
 #         "rent_person_id": row.get("rent_person_id"),
 #         "created_at": row.get("created_at"),
+#         # OTP
+#         "otp": otp if show_otp else None,
+#         "otp_verified": otp_verified,
+#         "show_otp": (not is_incoming) and show_otp,   # finder displays OTP
+#         "needs_otp_entry": is_incoming and show_otp,  # provider enters OTP
 #     }
 #
 #
@@ -68,7 +91,10 @@
 #         raise HTTPException(status_code=400, detail="Invalid duration")
 #
 #     if data.location_type == "in_person" and not (data.location or "").strip():
-#         raise HTTPException(status_code=400, detail="Location is required for in-person bookings")
+#         raise HTTPException(
+#             status_code=400,
+#             detail="Location is required for in-person bookings",
+#         )
 #
 #     booking_id = secrets.token_hex(8)
 #
@@ -120,14 +146,9 @@
 #     request: Request,
 #     current_user: dict = Depends(get_current_user),
 # ):
-#     """
-#     Returns a flat list for BookingsList.jsx
-#     Frontend accepts: data (array) OR data.bookings
-#     """
 #     db = request.scope["env"].DB
 #     user_id = current_user["id"]
 #
-#     # Outgoing = I am customer
 #     outgoing = await db.prepare(
 #         """
 #         SELECT b.*,
@@ -140,7 +161,6 @@
 #         """
 #     ).bind(user_id).all()
 #
-#     # Incoming = I am rent person
 #     incoming = await db.prepare(
 #         """
 #         SELECT b.*,
@@ -163,8 +183,10 @@
 #     for row in to_list(incoming):
 #         bookings.append(_format_booking(row, user_id))
 #
-#     # Sort by date desc
-#     bookings.sort(key=lambda b: b.get("created_at") or b.get("booking_date") or "", reverse=True)
+#     bookings.sort(
+#         key=lambda b: b.get("created_at") or b.get("booking_date") or "",
+#         reverse=True,
+#     )
 #
 #     return {
 #         "bookings": bookings,
@@ -209,26 +231,109 @@
 #     request: Request,
 #     current_user: dict = Depends(get_current_user),
 # ):
-#     """Only the RentPeople (provider) can approve incoming pending bookings."""
+#     """
+#     RentPeople approves → generate 6-digit OTP.
+#     Finder sees OTP; provider enters OTP to verify.
+#     """
 #     db = request.scope["env"].DB
 #     user_id = current_user["id"]
 #
-#     row = await db.prepare("SELECT * FROM bookings WHERE id = ?").bind(booking_id).first()
+#     row = await db.prepare(
+#         "SELECT * FROM bookings WHERE id = ?"
+#     ).bind(booking_id).first()
+#
 #     if not row:
 #         raise HTTPException(status_code=404, detail="Booking not found")
 #
 #     booking = dict(row)
+#
 #     if booking["rent_person_id"] != user_id:
-#         raise HTTPException(status_code=403, detail="Only the RentPeople can approve this booking")
+#         raise HTTPException(
+#             status_code=403,
+#             detail="Only the RentPeople can approve this booking",
+#         )
 #
 #     if booking.get("status") != "pending":
-#         raise HTTPException(status_code=400, detail=f"Cannot approve booking with status: {booking.get('status')}")
+#         raise HTTPException(
+#             status_code=400,
+#             detail=f"Cannot approve booking with status: {booking.get('status')}",
+#         )
+#
+#     otp = _generate_otp()
 #
 #     await db.prepare(
-#         "UPDATE bookings SET status = ? WHERE id = ?"
-#     ).bind("approved", booking_id).run()
+#         """
+#         UPDATE bookings
+#         SET status = ?, otp = ?, otp_verified = 0
+#         WHERE id = ?
+#         """
+#     ).bind("approved", otp, booking_id).run()
 #
-#     return {"id": booking_id, "booking_status": "approved", "message": "Booking approved"}
+#     return {
+#         "id": booking_id,
+#         "booking_status": "approved",
+#         "otp": otp,
+#         "otp_verified": False,
+#         "message": "Booking approved. OTP generated for meetup verification.",
+#     }
+#
+# @router.post("/bookings/{booking_id}/verify-otp")
+# async def verify_booking_otp(
+#     booking_id: str,
+#     data: VerifyOtpRequest,
+#     request: Request,
+#     current_user: dict = Depends(get_current_user),
+# ):
+#     """RentPeople enters OTP → mark booking completed."""
+#     db = request.scope["env"].DB
+#     user_id = current_user["id"]
+#
+#     row = await db.prepare(
+#         "SELECT * FROM bookings WHERE id = ?"
+#     ).bind(booking_id).first()
+#
+#     if not row:
+#         raise HTTPException(status_code=404, detail="Booking not found")
+#
+#     booking = dict(row)
+#
+#     if booking["rent_person_id"] != user_id:
+#         raise HTTPException(
+#             status_code=403,
+#             detail="Only the RentPeople can verify the OTP",
+#         )
+#
+#     if booking.get("status") == "completed":
+#         return {
+#             "id": booking_id,
+#             "booking_status": "completed",
+#             "otp_verified": True,
+#             "message": "Booking already completed",
+#         }
+#
+#     if booking.get("status") != "approved":
+#         raise HTTPException(
+#             status_code=400,
+#             detail="Booking must be approved before OTP verification",
+#         )
+#
+#     if not booking.get("otp") or str(data.otp).strip() != str(booking["otp"]):
+#         raise HTTPException(status_code=400, detail="Invalid OTP")
+#
+#     await db.prepare(
+#         """
+#         UPDATE bookings
+#         SET otp_verified = 1, status = ?
+#         WHERE id = ?
+#         """
+#     ).bind("completed", booking_id).run()
+#
+#     return {
+#         "id": booking_id,
+#         "booking_status": "completed",
+#         "otp_verified": True,
+#         "message": "OTP verified successfully. Booking completed.",
+#     }
 #
 #
 # @router.post("/bookings/{booking_id}/reject")
@@ -238,20 +343,29 @@
 #     request: Request,
 #     current_user: dict = Depends(get_current_user),
 # ):
-#     """Only the RentPeople (provider) can reject incoming pending bookings."""
 #     db = request.scope["env"].DB
 #     user_id = current_user["id"]
 #
-#     row = await db.prepare("SELECT * FROM bookings WHERE id = ?").bind(booking_id).first()
+#     row = await db.prepare(
+#         "SELECT * FROM bookings WHERE id = ?"
+#     ).bind(booking_id).first()
+#
 #     if not row:
 #         raise HTTPException(status_code=404, detail="Booking not found")
 #
 #     booking = dict(row)
+#
 #     if booking["rent_person_id"] != user_id:
-#         raise HTTPException(status_code=403, detail="Only the RentPeople can reject this booking")
+#         raise HTTPException(
+#             status_code=403,
+#             detail="Only the RentPeople can reject this booking",
+#         )
 #
 #     if booking.get("status") != "pending":
-#         raise HTTPException(status_code=400, detail=f"Cannot reject booking with status: {booking.get('status')}")
+#         raise HTTPException(
+#             status_code=400,
+#             detail=f"Cannot reject booking with status: {booking.get('status')}",
+#         )
 #
 #     msg = (data.rejection_message or "").strip()
 #
@@ -273,15 +387,18 @@
 #     request: Request,
 #     current_user: dict = Depends(get_current_user),
 # ):
-#     """Customer or provider can cancel (if still pending/approved)."""
 #     db = request.scope["env"].DB
 #     user_id = current_user["id"]
 #
-#     row = await db.prepare("SELECT * FROM bookings WHERE id = ?").bind(booking_id).first()
+#     row = await db.prepare(
+#         "SELECT * FROM bookings WHERE id = ?"
+#     ).bind(booking_id).first()
+#
 #     if not row:
 #         raise HTTPException(status_code=404, detail="Booking not found")
 #
 #     booking = dict(row)
+#
 #     if booking["customer_id"] != user_id and booking["rent_person_id"] != user_id:
 #         raise HTTPException(status_code=403, detail="Not allowed")
 #
@@ -292,7 +409,12 @@
 #         "UPDATE bookings SET status = ?, cancellation_message = ? WHERE id = ?"
 #     ).bind("cancelled", "Cancelled by user", booking_id).run()
 #
-#     return {"id": booking_id, "booking_status": "cancelled", "message": "Booking cancelled"}
+#     return {
+#         "id": booking_id,
+#         "booking_status": "cancelled",
+#         "message": "Booking cancelled",
+#     }
+
 
 
 from fastapi import APIRouter, Request, Depends, HTTPException, status
@@ -314,57 +436,142 @@ def _generate_otp() -> str:
     return f"{random.randint(100000, 999999)}"
 
 
-# def _format_booking(row: dict, current_user_id: str) -> dict:
-#     is_incoming = row.get("rent_person_id") == current_user_id
-#     direction = "incoming" if is_incoming else "outgoing"
-#
-#     if is_incoming:
-#         person_name = row.get("customer_name") or "Customer"
-#         person_image = row.get("customer_image") or ""
-#     else:
-#         person_name = row.get("rent_person_name") or "RentPeople"
-#         person_image = row.get("rent_person_image") or ""
-#
-#     status_val = row.get("status") or "pending"
-#     otp = row.get("otp") or ""
-#     otp_verified = bool(row.get("otp_verified", 0))
-#
-#     # After approve, until verified:
-#     # - Finder (outgoing) SEES the OTP
-#     # - Provider (incoming) ENTERS the OTP
-#     show_otp = status_val == "approved" and bool(otp) and not otp_verified
-#
-#     return {
-#         "id": row["id"],
-#         "direction": direction,
-#         "booking_status": status_val,
-#         "booking_date": row.get("booking_date"),
-#         "start_time": row.get("start_time"),
-#         "end_time": row.get("end_time"),
-#         "duration_minutes": row.get("duration_minutes") or 0,
-#         "location_type": row.get("location_type"),
-#         "location": row.get("location") or "",
-#         "timezone": row.get("timezone") or "Asia/Kolkata",
-#         "service_id": row.get("service_id"),
-#         "service_name": row.get("service_name") or "Service",
-#         "total_amount": row.get("total_amount") or 0,
-#         "price": row.get("price") or 0,
-#         "platform_fee": row.get("platform_fee") or 0,
-#         "special_requirements": row.get("special_requirements") or "",
-#         "customer_note": row.get("customer_note") or "",
-#         "rejection_message": row.get("rejection_message") or "",
-#         "cancellation_message": row.get("cancellation_message") or "",
-#         "person_name": person_name,
-#         "person_image": person_image,
-#         "customer_id": row.get("customer_id"),
-#         "rent_person_id": row.get("rent_person_id"),
-#         "created_at": row.get("created_at"),
-#         # OTP
-#         "otp": otp if show_otp else None,
-#         "otp_verified": otp_verified,
-#         "show_otp": (not is_incoming) and show_otp,      # finder displays OTP
-#         "needs_otp_entry": is_incoming and show_otp,     # provider enters OTP
-#     }
+# ─────────────────────────────────────────────
+# Wallet helpers (used on approve + complete)
+# ─────────────────────────────────────────────
+async def debit_wallet_for_booking(
+    db,
+    user_id: str,
+    amount: float,
+    booking_id: str,
+    person_name: str = "",
+):
+    """Finder pays for booking from wallet."""
+    amount = float(amount or 0)
+    if amount <= 0:
+        return None
+
+    user = await db.prepare(
+        "SELECT wallet_balance FROM users WHERE id = ?"
+    ).bind(user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    balance = float(dict(user).get("wallet_balance") or 0)
+    if balance < amount:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Insufficient wallet balance. Need ₹{int(amount)}, have ₹{int(balance)}",
+        )
+
+    await db.prepare(
+        """
+        UPDATE users
+        SET wallet_balance = COALESCE(wallet_balance, 0) - ?,
+            total_spent = COALESCE(total_spent, 0) + ?
+        WHERE id = ?
+        """
+    ).bind(amount, amount, user_id).run()
+
+    tx_id = secrets.token_hex(8)
+    await db.prepare(
+        """
+        INSERT INTO wallet_transactions
+            (id, user_id, type, subtitle, amount, category, booking_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+    ).bind(
+        tx_id,
+        user_id,
+        "Booking Payment",
+        f"Booking with {person_name}" if person_name else "Booking payment",
+        -abs(amount),
+        "Spent",
+        booking_id,
+    ).run()
+
+    return tx_id
+
+
+async def credit_wallet_earning(
+    db,
+    user_id: str,
+    amount: float,
+    booking_id: str,
+):
+    """RentPeople earns after booking completed."""
+    amount = float(amount or 0)
+    if amount <= 0:
+        return None
+
+    await db.prepare(
+        """
+        UPDATE users
+        SET wallet_balance = COALESCE(wallet_balance, 0) + ?
+        WHERE id = ?
+        """
+    ).bind(amount, user_id).run()
+
+    tx_id = secrets.token_hex(8)
+    await db.prepare(
+        """
+        INSERT INTO wallet_transactions
+            (id, user_id, type, subtitle, amount, category, booking_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+    ).bind(
+        tx_id,
+        user_id,
+        "Booking Earning",
+        "Earning from completed booking",
+        abs(amount),
+        "Added",
+        booking_id,
+    ).run()
+
+    return tx_id
+
+
+async def refund_wallet(
+    db,
+    user_id: str,
+    amount: float,
+    booking_id: str,
+    reason: str = "Booking cancelled/rejected",
+):
+    """Refund finder if approved booking is cancelled (optional)."""
+    amount = float(amount or 0)
+    if amount <= 0:
+        return None
+
+    await db.prepare(
+        """
+        UPDATE users
+        SET wallet_balance = COALESCE(wallet_balance, 0) + ?,
+            total_spent = MAX(COALESCE(total_spent, 0) - ?, 0)
+        WHERE id = ?
+        """
+    ).bind(amount, amount, user_id).run()
+
+    tx_id = secrets.token_hex(8)
+    await db.prepare(
+        """
+        INSERT INTO wallet_transactions
+            (id, user_id, type, subtitle, amount, category, booking_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+    ).bind(
+        tx_id,
+        user_id,
+        "Booking Refund",
+        reason,
+        abs(amount),
+        "Refunded",
+        booking_id,
+    ).run()
+
+    return tx_id
 
 
 def _format_booking(row: dict, current_user_id: str) -> dict:
@@ -381,8 +588,6 @@ def _format_booking(row: dict, current_user_id: str) -> dict:
     status_val = row.get("status") or "pending"
     otp = row.get("otp") or ""
     otp_verified = bool(row.get("otp_verified", 0)) or status_val == "completed"
-
-    # OTP only while approved and not yet verified/completed
     show_otp = status_val == "approved" and bool(otp) and not otp_verified
 
     return {
@@ -410,11 +615,10 @@ def _format_booking(row: dict, current_user_id: str) -> dict:
         "customer_id": row.get("customer_id"),
         "rent_person_id": row.get("rent_person_id"),
         "created_at": row.get("created_at"),
-        # OTP
         "otp": otp if show_otp else None,
         "otp_verified": otp_verified,
-        "show_otp": (not is_incoming) and show_otp,   # finder displays OTP
-        "needs_otp_entry": is_incoming and show_otp,  # provider enters OTP
+        "show_otp": (not is_incoming) and show_otp,
+        "needs_otp_entry": is_incoming and show_otp,
     }
 
 
@@ -538,10 +742,7 @@ async def my_bookings(
         reverse=True,
     )
 
-    return {
-        "bookings": bookings,
-        "count": len(bookings),
-    }
+    return {"bookings": bookings, "count": len(bookings)}
 
 
 @router.get("/bookings/{booking_id}")
@@ -582,8 +783,7 @@ async def approve_booking(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    RentPeople approves → generate 6-digit OTP.
-    Finder sees OTP; provider enters OTP to verify.
+    RentPeople approves → debit finder wallet → generate OTP.
     """
     db = request.scope["env"].DB
     user_id = current_user["id"]
@@ -609,8 +809,20 @@ async def approve_booking(
             detail=f"Cannot approve booking with status: {booking.get('status')}",
         )
 
-    otp = _generate_otp()
+    total = float(booking.get("total_amount") or 0)
+    provider_name = current_user.get("full_name") or "RentPeople"
 
+    # 1) Debit FINDER wallet first
+    await debit_wallet_for_booking(
+        db,
+        user_id=booking["customer_id"],
+        amount=total,
+        booking_id=booking_id,
+        person_name=provider_name,
+    )
+
+    # 2) Approve + OTP
+    otp = _generate_otp()
     await db.prepare(
         """
         UPDATE bookings
@@ -624,63 +836,9 @@ async def approve_booking(
         "booking_status": "approved",
         "otp": otp,
         "otp_verified": False,
-        "message": "Booking approved. OTP generated for meetup verification.",
+        "wallet_debited": total,
+        "message": "Booking approved. Finder wallet debited. OTP generated.",
     }
-
-
-# @router.post("/bookings/{booking_id}/verify-otp")
-# async def verify_booking_otp(
-#     booking_id: str,
-#     data: VerifyOtpRequest,
-#     request: Request,
-#     current_user: dict = Depends(get_current_user),
-# ):
-#     """RentPeople enters the 6-digit OTP shown to the finder."""
-#     db = request.scope["env"].DB
-#     user_id = current_user["id"]
-#
-#     row = await db.prepare(
-#         "SELECT * FROM bookings WHERE id = ?"
-#     ).bind(booking_id).first()
-#
-#     if not row:
-#         raise HTTPException(status_code=404, detail="Booking not found")
-#
-#     booking = dict(row)
-#
-#     if booking["rent_person_id"] != user_id:
-#         raise HTTPException(
-#             status_code=403,
-#             detail="Only the RentPeople can verify the OTP",
-#         )
-#
-#     if booking.get("status") != "approved":
-#         raise HTTPException(
-#             status_code=400,
-#             detail="Booking must be approved before OTP verification",
-#         )
-#
-#     if int(booking.get("otp_verified") or 0) == 1:
-#         return {
-#             "id": booking_id,
-#             "booking_status": "approved",
-#             "otp_verified": True,
-#             "message": "OTP already verified",
-#         }
-#
-#     if not booking.get("otp") or str(data.otp).strip() != str(booking["otp"]):
-#         raise HTTPException(status_code=400, detail="Invalid OTP")
-#
-#     await db.prepare(
-#         "UPDATE bookings SET otp_verified = 1 WHERE id = ?"
-#     ).bind(booking_id).run()
-#
-#     return {
-#         "id": booking_id,
-#         "booking_status": "approved",
-#         "otp_verified": True,
-#         "message": "OTP verified successfully",
-#     }
 
 
 @router.post("/bookings/{booking_id}/verify-otp")
@@ -690,7 +848,7 @@ async def verify_booking_otp(
     request: Request,
     current_user: dict = Depends(get_current_user),
 ):
-    """RentPeople enters OTP → mark booking completed."""
+    """RentPeople enters OTP → completed → credit provider wallet."""
     db = request.scope["env"].DB
     user_id = current_user["id"]
 
@@ -726,6 +884,7 @@ async def verify_booking_otp(
     if not booking.get("otp") or str(data.otp).strip() != str(booking["otp"]):
         raise HTTPException(status_code=400, detail="Invalid OTP")
 
+    # Complete booking
     await db.prepare(
         """
         UPDATE bookings
@@ -734,11 +893,24 @@ async def verify_booking_otp(
         """
     ).bind("completed", booking_id).run()
 
+    # Credit PROVIDER (total - platform fee)
+    total = float(booking.get("total_amount") or 0)
+    platform_fee = float(booking.get("platform_fee") or 0)
+    provider_earning = max(total - platform_fee, 0)
+
+    await credit_wallet_earning(
+        db,
+        user_id=booking["rent_person_id"],
+        amount=provider_earning,
+        booking_id=booking_id,
+    )
+
     return {
         "id": booking_id,
         "booking_status": "completed",
         "otp_verified": True,
-        "message": "OTP verified successfully. Booking completed.",
+        "provider_earning": provider_earning,
+        "message": "OTP verified successfully. Booking completed. Provider paid.",
     }
 
 
@@ -779,6 +951,8 @@ async def reject_booking(
         "UPDATE bookings SET status = ?, rejection_message = ? WHERE id = ?"
     ).bind("rejected", msg, booking_id).run()
 
+    # No wallet debit yet (debit only on approve) → no refund needed
+
     return {
         "id": booking_id,
         "booking_status": "rejected",
@@ -811,12 +985,26 @@ async def cancel_booking(
     if booking.get("status") in ("completed", "cancelled", "rejected"):
         raise HTTPException(status_code=400, detail="Cannot cancel this booking")
 
+    prev_status = booking.get("status")
+
     await db.prepare(
         "UPDATE bookings SET status = ?, cancellation_message = ? WHERE id = ?"
     ).bind("cancelled", "Cancelled by user", booking_id).run()
+
+    # If already approved (finder was debited) → refund finder
+    if prev_status == "approved":
+        total = float(booking.get("total_amount") or 0)
+        await refund_wallet(
+            db,
+            user_id=booking["customer_id"],
+            amount=total,
+            booking_id=booking_id,
+            reason="Booking cancelled after approval",
+        )
 
     return {
         "id": booking_id,
         "booking_status": "cancelled",
         "message": "Booking cancelled",
+        "refunded": prev_status == "approved",
     }
