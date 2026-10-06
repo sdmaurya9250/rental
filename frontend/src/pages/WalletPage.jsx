@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { 
   Wallet, 
   PlusCircle, 
@@ -15,7 +15,7 @@ import {
   CreditCard
 } from 'lucide-react';
 import FeaturePage from '../components/FeaturePage';
-import { getMyProfile, getStoredUser, getWalletBalance, getWalletTransactions, topUpWallet } from '../auth/auth';
+import { getMyProfile, getStoredUser, getWalletTransactions, topUpWallet } from '../auth/auth';
 
 const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
 
@@ -47,23 +47,39 @@ function getRoleDetails(role) {
 
 function formatMoney(value) {
   if (value == null || value === '') return '—';
-  const amount = Number(value);
+  const amount = typeof value === 'string'
+    ? Number(value.replace(/[₹,\s]/g, ''))
+    : Number(value);
   return Number.isFinite(amount)
     ? `₹${amount.toLocaleString('en-IN')}`
     : '—';
 }
 
-function walletSnapshot(payload) {
-  const root = payload?.data || payload || {};
-  const nested = root.wallet || root.walletBalance || root.wallet_balance || root;
-  const nestedTotals = nested.totals || root.totals || root;
-  return {
-    ...root,
-    ...nested,
-    balance: nested.balance ?? nested.wallet_balance ?? nested.walletBalance
-      ?? root.balance ?? root.wallet_balance ?? root.walletBalance,
-    totals: nestedTotals,
-  };
+function getTransactionAmount(transaction) {
+  const rawAmount = transaction.amount ?? transaction.total_amount ?? transaction.value
+    ?? transaction.transaction_amount ?? transaction.credit_amount ?? transaction.debit_amount;
+  if (rawAmount == null || rawAmount === '') return null;
+  const amount = typeof rawAmount === 'string'
+    ? Number(rawAmount.replace(/[₹,\s]/g, ''))
+    : Number(rawAmount);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function summarizeTransactions(transactions) {
+  return transactions.reduce((totals, transaction) => {
+    const amount = getTransactionAmount(transaction);
+    if (amount == null) return totals;
+
+    const category = String(transaction.category || transaction.type || '').toLowerCase().replace(/[\s_-]/g, '');
+    if (category.includes('refund')) {
+      totals.refunded += Math.abs(amount);
+    } else if (category.includes('spent') || category.includes('debit') || amount < 0) {
+      totals.spent += Math.abs(amount);
+    } else if (category.includes('added') || category.includes('credit') || category.includes('topup') || amount > 0) {
+      totals.added += Math.abs(amount);
+    }
+    return totals;
+  }, { added: 0, spent: 0, refunded: 0 });
 }
 
 export default function WalletPage() {
@@ -75,23 +91,16 @@ export default function WalletPage() {
   const [topUpError, setTopUpError] = useState(false);
   const [topUpLoading, setTopUpLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('All');
-  const [wallet, setWallet] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
-    Promise.allSettled([getWalletBalance(), getWalletTransactions(), getMyProfile()])
-      .then(([balanceResult, transactionResult, profileResult]) => {
+    Promise.allSettled([getWalletTransactions(), getMyProfile()])
+      .then(([transactionResult, profileResult]) => {
         if (!active) return;
         const errors = [];
-        if (balanceResult.status === 'fulfilled') {
-          setWallet(walletSnapshot(balanceResult.value));
-        } else {
-          errors.push(`Balance: ${balanceResult.reason?.message || 'could not be loaded'}`);
-        }
-
         if (transactionResult.status === 'fulfilled') {
           const body = transactionResult.value?.data || transactionResult.value;
           const transactionPayload = body?.transactions || body?.results || body;
@@ -117,11 +126,11 @@ export default function WalletPage() {
 
   const role = profile.want_to || profile.wantTo || profile.accountIntent || '';
   const details = getRoleDetails(role);
-  const totals = wallet?.totals || wallet || {};
-  const balance = wallet?.balance ?? wallet?.wallet_balance ?? wallet?.walletBalance ?? profile.wallet_balance ?? profile.walletBalance;
-  const totalAdded = totals.total_added ?? totals.totalAdded ?? totals.added ?? wallet?.total_added ?? wallet?.totalAdded;
-  const totalSpent = totals.total_spent ?? totals.totalSpent ?? totals.spent ?? wallet?.total_spent ?? wallet?.totalSpent;
   const rawTransactions = transactions;
+  const transactionTotals = useMemo(() => summarizeTransactions(rawTransactions), [rawTransactions]);
+  const balance = transactionTotals.added + transactionTotals.refunded - transactionTotals.spent;
+  const totalAdded = transactionTotals.added;
+  const totalSpent = transactionTotals.spent;
 
   const filteredTransactions = rawTransactions.filter(tx => {
     if (activeTab === 'All') return true;
@@ -147,9 +156,6 @@ export default function WalletPage() {
     try {
       const result = await topUpWallet(amount);
       setTopUpMessage(result?.message || 'Money added to your wallet successfully.');
-      if (result?.balance != null || result?.wallet || result?.totals) {
-        setWallet(walletSnapshot(result));
-      }
       setRefreshKey((key) => key + 1);
     } catch (error) {
       setTopUpError(true);
@@ -228,7 +234,7 @@ export default function WalletPage() {
               </div>
               <span className="text-[11px] font-medium text-slate-400">Total Added</span>
               <span className="mt-0.5 text-base font-bold text-slate-800">{formatMoney(totalAdded)}</span>
-              <span className="text-[10px] text-slate-400">This month</span>
+              <span className="text-[10px] text-slate-400">All transactions</span>
             </div>
 
             {/* Total Spent */}
@@ -238,7 +244,7 @@ export default function WalletPage() {
               </div>
               <span className="text-[11px] font-medium text-slate-400">Total Spent</span>
               <span className="mt-0.5 text-base font-bold text-slate-800">{formatMoney(totalSpent)}</span>
-              <span className="text-[10px] text-slate-400">This month</span>
+              <span className="text-[10px] text-slate-400">All transactions</span>
             </div>
 
             {/* Available Balance */}
@@ -441,7 +447,9 @@ export default function WalletPage() {
             {filteredTransactions.length > 0 ? (
               <div className="divide-y divide-slate-100">
                 {filteredTransactions.map((tx, idx) => {
-                  const isCredit = tx.category === 'Added' || (tx.amount && Number(tx.amount) > 0);
+                  const amount = getTransactionAmount(tx);
+                  const category = String(tx.category || '').toLowerCase();
+                  const isCredit = ['added', 'refunded'].includes(category) || (amount != null && amount >= 0);
                   return (
                     <div key={tx.id || idx} className="flex items-center justify-between py-4 transition hover:bg-slate-50/60 rounded-xl px-2 -mx-2">
                       <div className="flex items-center gap-3">
@@ -458,7 +466,7 @@ export default function WalletPage() {
                         </div>
                       </div>
                       <span className={`text-sm font-bold ${isCredit ? 'text-emerald-600' : 'text-red-500'}`}>
-                        {isCredit ? `+ ${formatMoney(tx.amount)}` : `- ${formatMoney(Math.abs(tx.amount))}`}
+                        {amount == null ? '—' : `${isCredit ? '+' : '-'} ${formatMoney(Math.abs(amount))}`}
                       </span>
                     </div>
                   );

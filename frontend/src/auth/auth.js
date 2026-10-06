@@ -243,10 +243,6 @@ export function getMyBookings() {
   return request('/api/bookings', { auth: true });
 }
 
-export function getWalletBalance() {
-  return request('/api/walletBalance', { auth: true });
-}
-
 export function topUpWallet(amount) {
   return request('/api/wallet/top-up', { method: 'POST', body: { amount }, auth: true });
 }

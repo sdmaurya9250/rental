@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Heart } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AuthModal from './AuthModal';
+import BrandLogo from './BrandLogo';
 
 const SERVICE_LINKS = ['Movie Partner', 'In-Person Meeting', 'Elder Care', 'Hangingout'];
 
@@ -19,10 +19,7 @@ export default function HomeFooter() {
     <footer className="z-10 w-full border-t border-violet-100/60 bg-white">
       <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-6 py-10 md:grid-cols-5">
         <div className="col-span-2 md:col-span-1">
-          <div className="mb-3 flex items-center space-x-2">
-            <Heart className="h-6 w-6 fill-pink-500 text-pink-500" />
-            <span className="text-lg font-extrabold text-[#16132a]">RentCoPartner</span>
-          </div>
+          <BrandLogo className="mb-3 gap-2" compact />
           <p className="max-w-xs text-xs leading-relaxed text-gray-500">Find trusted companions for every occasion, or join and earn on your own terms.</p>
         </div>
 

@@ -7,6 +7,7 @@ import {
   registerUser,
 } from '../auth/auth';
 import { getCurrentLocation, reverseGeocode } from '../pages/finderApi';
+import BrandLogo from './BrandLogo';
 
 // --- Maps between what the UI shows and what the backend's Literal types expect ---
 const GENDER_OPTIONS = [
@@ -216,7 +217,8 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
             <X className="w-6 h-6" />
           </button>
 
-          <h2 className="text-2xl font-bold tracking-tight">Welcome to RentCoPartner</h2>
+          <BrandLogo dark compact onClick={onClose} className="mb-3" />
+          <h2 className="text-2xl font-bold tracking-tight">{mode === 'register' ? 'Create your account' : 'Welcome back'}</h2>
           <p className="text-xs text-white/90 mt-1 font-medium">
             Your social & lifestyle support platform
           </p>
