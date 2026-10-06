@@ -15,7 +15,7 @@ import {
   CreditCard
 } from 'lucide-react';
 import FeaturePage from '../components/FeaturePage';
-import { getMyProfile, getStoredUser } from '../auth/auth';
+import { getMyProfile, getStoredUser, getWalletBalance, getWalletTransactions, topUpWallet } from '../auth/auth';
 
 const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
 
@@ -53,26 +53,58 @@ function formatMoney(value) {
     : '—';
 }
 
+function walletSnapshot(payload) {
+  const root = payload?.data || payload || {};
+  const nested = root.wallet || root.walletBalance || root.wallet_balance || root;
+  const nestedTotals = nested.totals || root.totals || root;
+  return {
+    ...root,
+    ...nested,
+    balance: nested.balance ?? nested.wallet_balance ?? nested.walletBalance
+      ?? root.balance ?? root.wallet_balance ?? root.walletBalance,
+    totals: nestedTotals,
+  };
+}
+
 export default function WalletPage() {
   const [profile, setProfile] = useState(() => getStoredUser() || {});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [topUpAmount, setTopUpAmount] = useState('2000');
   const [topUpMessage, setTopUpMessage] = useState('');
+  const [topUpError, setTopUpError] = useState(false);
+  const [topUpLoading, setTopUpLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('All');
+  const [wallet, setWallet] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
-    getMyProfile()
-      .then((result) => {
-        if (active) {
-          setProfile({ ...(getStoredUser() || {}), ...(result?.profile || result || {}) });
+    setLoading(true);
+    Promise.allSettled([getWalletBalance(), getWalletTransactions(), getMyProfile()])
+      .then(([balanceResult, transactionResult, profileResult]) => {
+        if (!active) return;
+        const errors = [];
+        if (balanceResult.status === 'fulfilled') {
+          setWallet(walletSnapshot(balanceResult.value));
+        } else {
+          errors.push(`Balance: ${balanceResult.reason?.message || 'could not be loaded'}`);
         }
-      })
-      .catch((error) => {
-        if (active) {
-          setLoadError(error.message || 'Wallet profile details could not be loaded.');
+
+        if (transactionResult.status === 'fulfilled') {
+          const body = transactionResult.value?.data || transactionResult.value;
+          const transactionPayload = body?.transactions || body?.results || body;
+          if (Array.isArray(transactionPayload)) setTransactions(transactionPayload);
+          else errors.push('Transactions: the API returned an unexpected response.');
+        } else {
+          errors.push(`Transactions: ${transactionResult.reason?.message || 'could not be loaded'}`);
         }
+
+        if (profileResult.status === 'fulfilled' && profileResult.value) {
+          setProfile({ ...(getStoredUser() || {}), ...(profileResult.value?.profile || profileResult.value || {}) });
+        }
+        setLoadError(errors.join(' '));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -81,37 +113,15 @@ export default function WalletPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   const role = profile.want_to || profile.wantTo || profile.accountIntent || '';
   const details = getRoleDetails(role);
-  const balance = profile.wallet_balance ?? profile.walletBalance ?? profile.wallet?.balance ?? 2000;
-  const totalAdded = profile.total_added ?? profile.totalAdded ?? 8500;
-  const totalSpent = profile.total_spent ?? profile.totalSpent ?? 6200;
-  const lastAddedNote = profile.last_added_note || '+ ₹500 added on 25 Sep 2026';
-
-  const rawTransactions = Array.isArray(profile.transactions)
-    ? profile.transactions
-    : Array.isArray(profile.wallet?.transactions)
-    ? profile.wallet.transactions
-    : [
-        {
-          id: '1',
-          type: 'Wallet Top Up',
-          subtitle: 'Added via UPI',
-          date: '25 Sep 2026, 10:24 AM',
-          amount: 2000,
-          category: 'Added'
-        },
-        {
-          id: '2',
-          type: 'Booking Payment',
-          subtitle: 'Booking with Sara',
-          date: '22 Sep 2026, 04:15 PM',
-          amount: -1200,
-          category: 'Spent'
-        }
-      ];
+  const totals = wallet?.totals || wallet || {};
+  const balance = wallet?.balance ?? wallet?.wallet_balance ?? wallet?.walletBalance ?? profile.wallet_balance ?? profile.walletBalance;
+  const totalAdded = totals.total_added ?? totals.totalAdded ?? totals.added ?? wallet?.total_added ?? wallet?.totalAdded;
+  const totalSpent = totals.total_spent ?? totals.totalSpent ?? totals.spent ?? wallet?.total_spent ?? wallet?.totalSpent;
+  const rawTransactions = transactions;
 
   const filteredTransactions = rawTransactions.filter(tx => {
     if (activeTab === 'All') return true;
@@ -121,17 +131,32 @@ export default function WalletPage() {
     return true;
   });
 
-  function handleAddMoney(event) {
+  async function handleAddMoney(event) {
     event.preventDefault();
     setTopUpMessage('');
     const amount = Number(topUpAmount);
 
     if (!Number.isFinite(amount) || amount < 100) {
-      setTopUpMessage('Please enter an amount greater than ₹100.');
+      setTopUpError(true);
+      setTopUpMessage('Please enter an amount of at least ₹100.');
       return;
     }
 
-    setTopUpMessage('Payment gateway integration required. No funds were added.');
+    setTopUpLoading(true);
+    setTopUpError(false);
+    try {
+      const result = await topUpWallet(amount);
+      setTopUpMessage(result?.message || 'Money added to your wallet successfully.');
+      if (result?.balance != null || result?.wallet || result?.totals) {
+        setWallet(walletSnapshot(result));
+      }
+      setRefreshKey((key) => key + 1);
+    } catch (error) {
+      setTopUpError(true);
+      setTopUpMessage(error.message || 'Unable to add money. Please try again.');
+    } finally {
+      setTopUpLoading(false);
+    }
   }
 
   return (
@@ -184,7 +209,7 @@ export default function WalletPage() {
             <div className="mt-6 flex items-center justify-between pt-2">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur-md">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400 text-[10px] text-purple-900 font-bold">↑</span>
-                {lastAddedNote}
+                Wallet balance
               </div>
 
               <button className="inline-flex items-center gap-1 rounded-xl bg-white/20 border border-white/30 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/30 transition backdrop-blur-md">
@@ -289,14 +314,15 @@ export default function WalletPage() {
                     </div>
                     <button
                       type="submit"
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 transition hover:bg-purple-700 active:scale-95"
+                      disabled={topUpLoading}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 transition hover:bg-purple-700 active:scale-95 disabled:cursor-wait disabled:opacity-60"
                     >
-                      <PlusCircle className="h-4 w-4" /> Add Money
+                      <PlusCircle className="h-4 w-4" /> {topUpLoading ? 'Adding…' : 'Add Money'}
                     </button>
                   </div>
 
                   {topUpMessage && (
-                    <p role="status" className="text-xs font-medium text-amber-700">
+                    <p role={topUpError ? 'alert' : 'status'} className={`text-xs font-medium ${topUpError ? 'text-rose-700' : 'text-emerald-700'}`}>
                       {topUpMessage}
                     </p>
                   )}

@@ -91,6 +91,41 @@ export default function Home() {
     { step: '06', icon: <TrendingUp className="w-5 h-5 text-violet-600" />, title: 'Track Your Progress', description: 'Keep your profile updated and build trust through reviews and completed activity.' },
   ];
 
+  const faqs = [
+    {
+      question: 'What is RentCoPartner?',
+      answer: 'RentCoPartner helps people find and book companions for social and lifestyle activities. You can explore profiles, services, availability and rates, then send a booking request through the platform.',
+    },
+    {
+      question: 'How do I find and book a companion?',
+      answer: 'Create an account, browse profiles and choose a companion whose services, location, availability and rates suit your plans. Select a date and time, review the booking details, and send your request. The booking is confirmed when the request is accepted.',
+    },
+    {
+      question: 'What services can I book?',
+      answer: 'Services listed on RentCoPartner include movie outings, coffee and food, shopping, travel, events, fitness and other social activities. Available services vary by companion, so check each profile before sending a request.',
+    },
+    {
+      question: 'How much does a booking cost?',
+      answer: 'Companions set their rates and list services on their profiles. Check the rate, duration, platform fee and total shown in the booking details before submitting your request.',
+    },
+    {
+      question: 'How can I join as a RentCoPartner?',
+      answer: 'Create an account and complete your profile with the information people need to make a booking, such as your services, rates, availability and location. You can manage booking requests from your account.',
+    },
+    {
+      question: 'Is RentCoPartner a dating service?',
+      answer: 'RentCoPartner is for arranging social and lifestyle companionship bookings. Keep communication respectful and follow the platform’s terms and booking guidelines.',
+    },
+    {
+      question: 'Where is RentCoPartner available?',
+      answer: 'Browse profiles by location to see companions available for your area. Availability and service options depend on the profiles listed for that location.',
+    },
+    {
+      question: 'Where can I get help with a booking or cancellation?',
+      answer: <>Review the <Link to="/refund-policy" className="font-semibold text-violet-700 underline underline-offset-2">Refund Policy</Link> and <Link to="/help" className="font-semibold text-violet-700 underline underline-offset-2">Help page</Link> for guidance on bookings, cancellations and payment questions.</>,
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-[#fcfaff] text-[#16132a] font-sans flex flex-col selection:bg-violet-100 selection:text-violet-900 overflow-x-hidden relative">
 
@@ -364,6 +399,31 @@ export default function Home() {
                 <h3 className="text-base font-bold text-[#16132a] mb-2">{item.title}</h3>
                 <p className="text-xs text-gray-500 leading-relaxed">{item.description}</p>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FREQUENTLY ASKED QUESTIONS */}
+      <section id="faq" className={`relative z-10 w-full bg-gradient-to-b from-white to-violet-50/50 ${SECTION_Y}`}>
+        <div className={CONTAINER}>
+          <SectionHeading
+            eyebrow="FAQ"
+            title="Frequently Asked Questions"
+            subtitle="A few helpful details about finding a companion, making a booking and using RentCoPartner."
+          />
+
+          <div className="mx-auto max-w-3xl space-y-3">
+            {faqs.map((faq) => (
+              <details key={faq.question} className="group rounded-2xl border border-violet-100 bg-white px-5 py-4 shadow-sm open:border-violet-200 open:shadow-md">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-bold text-[#16132a] marker:content-none [&::-webkit-details-marker]:hidden">
+                  {faq.question}
+                  <span aria-hidden="true" className="text-xl font-normal leading-none text-violet-600 transition-transform group-open:rotate-45">+</span>
+                </summary>
+                <div className="mt-3 max-w-2xl pr-6 text-sm leading-relaxed text-gray-600">
+                  {faq.answer}
+                </div>
+              </details>
             ))}
           </div>
         </div>

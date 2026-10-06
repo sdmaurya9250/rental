@@ -430,10 +430,10 @@ export default function MyProfilePage() {
 
   return (
     <FeaturePage title="My profile" subtitle="Keep your details, profile image, and pricing up to date.">
-      <section className="mb-6 max-w-5xl rounded-2xl border border-violet-100 bg-white p-5 shadow-sm" aria-label="Profile completion">
+      {(loadingProfile || completion < 100) && <section className="mb-6 max-w-5xl rounded-2xl border border-violet-100 bg-white p-5 shadow-sm" aria-label="Profile completion">
         <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-[#171426]">Profile completion</h2><p className="mt-1 text-sm text-[#706a80]">A complete profile helps people get to know you.</p></div><span className="text-lg font-bold text-violet-700">{loadingProfile ? '…' : `${completion}%`}</span></div>
         <div className="mt-4 h-3 overflow-hidden rounded-full bg-violet-100" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={completion}><div className="h-full rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 transition-all" style={{ width: `${completion}%` }} /></div>
-      </section>
+      </section>}
       {loadingProfile ? <p className="text-sm text-[#706a80]">Loading your profile…</p> : errorMsg && !profile.id ? <p role="alert" className="text-sm text-red-600">{errorMsg}</p> : (
       <div className="grid max-w-5xl gap-6 lg:grid-cols-[260px_1fr]">
         <aside className="h-fit rounded-2xl border border-[#e7e1f2] bg-white p-5 text-center shadow-sm">
