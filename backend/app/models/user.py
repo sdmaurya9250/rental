@@ -130,3 +130,7 @@ class VerifyOtpRequest(BaseModel):
 class WalletTopUpRequest(BaseModel):
     amount: float = Field(..., ge=100)
     method: Optional[str] = "UPI"  # UPI | Card | etc.
+
+class RatingCreate(BaseModel):
+    stars: int = Field(..., ge=1, le=5)
+    message: Optional[str] = Field(None, max_length=1000)
