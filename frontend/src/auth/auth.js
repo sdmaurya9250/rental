@@ -243,6 +243,14 @@ export function getMyBookings() {
   return request('/api/bookings', { auth: true });
 }
 
+export function topUpWallet(amount) {
+  return request('/api/wallet/top-up', { method: 'POST', body: { amount }, auth: true });
+}
+
+export function getWalletTransactions() {
+  return request('/api/wallet/transactions', { auth: true });
+}
+
 export function approveBooking(bookingId) {
   return request(`/api/bookings/${encodeURIComponent(bookingId)}/approve`, { method: 'POST', auth: true });
 }

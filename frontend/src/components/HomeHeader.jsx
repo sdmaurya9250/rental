@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Heart, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AuthModal from './AuthModal';
+import BrandLogo from './BrandLogo';
 
 export default function HomeHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -23,10 +24,31 @@ export default function HomeHeader() {
 
   return (
     <nav className="relative z-20 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5">
-      <Link to="/" onClick={closeMenu} className="flex shrink-0 items-center space-x-2">
-        <Heart className="h-7 w-7 fill-pink-500 text-pink-500" />
-        <span className="text-2xl font-black tracking-tight text-[#16132a]">Rent<span className="text-[#8a1cf7]">People</span></span>
-      </Link>
+      {/* <Link to="/" className="flex items-center space-x-2">
+        <span className="flex -space-x-1"><i className="w-3.5 h-3.5 bg-pink-500 rounded-full inline-block" /><i className="w-3.5 h-3.5 bg-purple-500 rounded-full inline-block" /></span>
+        <span className="text-xl font-bold tracking-tight">RentCoPartner</span>
+      </Link> */}
+
+      <BrandLogo />
+
+      {/* <Link to="/" className="group flex items-center gap-3">
+
+  <div className="relative flex items-center justify-center w-10 h-10 rounded-2xl bg-gradient-to-b from-slate-50 to-slate-100 border border-slate-200/80 shadow-inner group-hover:scale-105 transition-all duration-200">
+    <div className="relative flex -space-x-2">
+  
+      <span className="w-5 h-5 rounded-full border-[2.5px] border-pink-500 shadow-sm shadow-pink-500/30" />
+   
+      <span className="w-5 h-5 rounded-full border-[2.5px] border-purple-600 mix-blend-multiply shadow-sm shadow-purple-500/30" />
+    </div>
+  </div>
+
+  <div className="flex flex-col -space-y-0.5">
+    <span className="text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-purple-600 transition-colors">
+      RentCo<span className="bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">Partner</span>
+    </span>
+    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Rental Network</span>
+  </div>
+</Link> */}
 
       <div className="hidden items-center space-x-7 text-sm font-semibold lg:flex">
         <Link to="/" className={isHome ? 'border-b-2 border-violet-600 pb-0.5 text-violet-600' : 'text-gray-600 transition hover:text-violet-600'}>Home</Link>

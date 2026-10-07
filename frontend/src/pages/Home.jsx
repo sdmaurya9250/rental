@@ -4,7 +4,7 @@ import {
   Smartphone, UserPlus, Sparkles, Inbox, Handshake, CircleDollarSign, TrendingUp,
   Clapperboard, Users, HeartHandshake, PartyPopper, ShoppingBag, Stethoscope,
   Home as HomeIcon, Plane, Theater, Dumbbell, Music, Coffee, Utensils,
-  MoreHorizontal, Clock, Lock, CheckCircle2, Heart, ChevronRight
+  MoreHorizontal, Clock, Lock, CheckCircle2, Heart, ChevronRight, Camera, Video
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import HomeHeader from '../components/HomeHeader';
@@ -15,7 +15,7 @@ import AuthModal from '../components/AuthModal';
 // Same left/right spacing for every section
 const CONTAINER = 'w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8';
 // Same (compact) top/bottom spacing for every section
-const SECTION_Y = 'py-10 lg:py-12';
+const SECTION_Y = 'py-6 lg:py-8';
 
 /* ---------- Shared section heading (same font/size/colour everywhere) ---------- */
 function SectionHeading({ eyebrow, title, subtitle, className = '' }) {
@@ -71,6 +71,12 @@ export default function Home() {
     { icon: <ShoppingBag className="w-5 h-5" />, title: 'Shopping Buddy', subtitle: 'Groceries, errands, or shopping', price: '₹2,000', duration: '1 hour' },
     { icon: <Stethoscope className="w-5 h-5" />, title: 'Medical Support', subtitle: 'Hospital & appointment assistance', price: '₹2,000', duration: '1 hour' },
     { icon: <HomeIcon className="w-5 h-5" />, title: 'Domestic Help', subtitle: 'Light support & organizing', price: '₹2,000', duration: '1 hour' },
+    { icon: <Camera className="w-5 h-5" />, title: 'Photo Shoot Companion', subtitle: 'Explore locations and capture great photos together' },
+    { icon: <Video className="w-5 h-5" />, title: 'Video Shoot Companion', subtitle: 'Join a vlog, reel, or short video shoot' },
+    { icon: <Sparkles className="w-5 h-5" />, title: 'Content Creator Buddy', subtitle: 'Brainstorm and create social media content together' },
+    { icon: <Star className="w-5 h-5" />, title: 'Influencer Collaboration', subtitle: 'Meet for creator projects, ideas, and content sessions' },
+    { icon: <MapPin className="w-5 h-5" />, title: 'Explore the City', subtitle: 'Visit local attractions, markets, and neighborhoods' },
+    { icon: <Music className="w-5 h-5" />, title: 'Concert Companion', subtitle: 'Enjoy live music and concerts together' },
   ];
 
   const whyJoinFeatures = [
@@ -89,6 +95,41 @@ export default function Home() {
     { step: '04', icon: <Handshake className="w-5 h-5 text-violet-600" />, title: 'Accept Bookings', description: 'Review each request and decide which bookings fit your schedule.' },
     { step: '05', icon: <CircleDollarSign className="w-5 h-5 text-violet-600" />, title: 'Complete & Earn', description: 'Complete accepted bookings and keep track of your earnings from your profile.' },
     { step: '06', icon: <TrendingUp className="w-5 h-5 text-violet-600" />, title: 'Track Your Progress', description: 'Keep your profile updated and build trust through reviews and completed activity.' },
+  ];
+
+  const faqs = [
+    {
+      question: 'What is RentCoPartner?',
+      answer: 'RentCoPartner helps people find and book companions for social and lifestyle activities. You can explore profiles, services, availability and rates, then send a booking request through the platform.',
+    },
+    {
+      question: 'How do I find and book a companion?',
+      answer: 'Create an account, browse profiles and choose a companion whose services, location, availability and rates suit your plans. Select a date and time, review the booking details, and send your request. The booking is confirmed when the request is accepted.',
+    },
+    {
+      question: 'What services can I book?',
+      answer: 'Services listed on RentCoPartner include movie outings, coffee and food, shopping, travel, events, fitness and other social activities. Available services vary by companion, so check each profile before sending a request.',
+    },
+    {
+      question: 'How much does a booking cost?',
+      answer: 'Companions set their rates and list services on their profiles. Check the rate, duration, platform fee and total shown in the booking details before submitting your request.',
+    },
+    {
+      question: 'How can I join as a RentCoPartner?',
+      answer: 'Create an account and complete your profile with the information people need to make a booking, such as your services, rates, availability and location. You can manage booking requests from your account.',
+    },
+    {
+      question: 'Is RentCoPartner a dating service?',
+      answer: 'RentCoPartner is for arranging social and lifestyle companionship bookings. Keep communication respectful and follow the platform’s terms and booking guidelines.',
+    },
+    {
+      question: 'Where is RentCoPartner available?',
+      answer: 'Browse profiles by location to see companions available for your area. Availability and service options depend on the profiles listed for that location.',
+    },
+    {
+      question: 'Where can I get help with a booking or cancellation?',
+      answer: <>Review the <Link to="/refund-policy" className="font-semibold text-violet-700 underline underline-offset-2">Refund Policy</Link> and <Link to="/help" className="font-semibold text-violet-700 underline underline-offset-2">Help page</Link> for guidance on bookings, cancellations and payment questions.</>,
+    },
   ];
 
   return (
@@ -113,11 +154,11 @@ export default function Home() {
               <span className="bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] bg-clip-text text-transparent">
                 Rental Companion
               </span> <br />
-              for Any Occasion
+              for Every Moment
             </h1>
 
             <p className="text-gray-500 text-sm sm:text-base max-w-lg leading-relaxed font-normal">
-              Safe, verified and trusted companions for events, travel, dining, movies and more. Choose your service, location and time.
+             Connect with verified companions for travel, events, dining, movies and more. Choose who you want, where you want, and when you want.
             </p>
 
             <div className="grid grid-cols-2 gap-2 pt-1 sm:flex sm:flex-wrap sm:items-center sm:gap-4">
@@ -307,9 +348,15 @@ export default function Home() {
                   <p className="mt-1 line-clamp-2 min-h-[32px] text-[10px] font-medium leading-4 text-gray-400">{item.subtitle}</p>
                 </div>
 
-                <div className="mt-3 flex items-center">
-                  <span className="text-sm font-black text-violet-700">{item.price}</span>
-                  <span className="ml-1 text-[9px] font-semibold text-gray-400">/ {item.duration}</span>
+                <div className="mt-3 flex min-h-5 items-center">
+                  {item.price ? (
+                    <>
+                      <span className="text-sm font-black text-violet-700">{item.price}</span>
+                      <span className="ml-1 text-[9px] font-semibold text-gray-400">/ {item.duration}</span>
+                    </>
+                  ) : (
+                    <span className="text-[10px] font-semibold text-violet-700">Rates vary by profile</span>
+                  )}
                 </div>
 
                 <button
@@ -364,6 +411,31 @@ export default function Home() {
                 <h3 className="text-base font-bold text-[#16132a] mb-2">{item.title}</h3>
                 <p className="text-xs text-gray-500 leading-relaxed">{item.description}</p>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FREQUENTLY ASKED QUESTIONS */}
+      <section id="faq" className={`relative z-10 w-full bg-gradient-to-b from-white to-violet-50/50 ${SECTION_Y}`}>
+        <div className={CONTAINER}>
+          <SectionHeading
+            eyebrow="FAQ"
+            title="Frequently Asked Questions"
+            subtitle="A few helpful details about finding a companion, making a booking and using RentCoPartner."
+          />
+
+          <div className="mx-auto max-w-3xl space-y-3">
+            {faqs.map((faq) => (
+              <details key={faq.question} className="group rounded-2xl border border-violet-100 bg-white px-5 py-4 shadow-sm open:border-violet-200 open:shadow-md">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-bold text-[#16132a] marker:content-none [&::-webkit-details-marker]:hidden">
+                  {faq.question}
+                  <span aria-hidden="true" className="text-xl font-normal leading-none text-violet-600 transition-transform group-open:rotate-45">+</span>
+                </summary>
+                <div className="mt-3 max-w-2xl pr-6 text-sm leading-relaxed text-gray-600">
+                  {faq.answer}
+                </div>
+              </details>
             ))}
           </div>
         </div>

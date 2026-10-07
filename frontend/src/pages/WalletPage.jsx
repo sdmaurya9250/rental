@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { 
   Wallet, 
   PlusCircle, 
@@ -15,7 +15,7 @@ import {
   CreditCard
 } from 'lucide-react';
 import FeaturePage from '../components/FeaturePage';
-import { getMyProfile, getStoredUser } from '../auth/auth';
+import { getMyProfile, getStoredUser, getWalletTransactions, topUpWallet } from '../auth/auth';
 
 const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
 
@@ -47,10 +47,39 @@ function getRoleDetails(role) {
 
 function formatMoney(value) {
   if (value == null || value === '') return '—';
-  const amount = Number(value);
+  const amount = typeof value === 'string'
+    ? Number(value.replace(/[₹,\s]/g, ''))
+    : Number(value);
   return Number.isFinite(amount)
     ? `₹${amount.toLocaleString('en-IN')}`
     : '—';
+}
+
+function getTransactionAmount(transaction) {
+  const rawAmount = transaction.amount ?? transaction.total_amount ?? transaction.value
+    ?? transaction.transaction_amount ?? transaction.credit_amount ?? transaction.debit_amount;
+  if (rawAmount == null || rawAmount === '') return null;
+  const amount = typeof rawAmount === 'string'
+    ? Number(rawAmount.replace(/[₹,\s]/g, ''))
+    : Number(rawAmount);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function summarizeTransactions(transactions) {
+  return transactions.reduce((totals, transaction) => {
+    const amount = getTransactionAmount(transaction);
+    if (amount == null) return totals;
+
+    const category = String(transaction.category || transaction.type || '').toLowerCase().replace(/[\s_-]/g, '');
+    if (category.includes('refund')) {
+      totals.refunded += Math.abs(amount);
+    } else if (category.includes('spent') || category.includes('debit') || amount < 0) {
+      totals.spent += Math.abs(amount);
+    } else if (category.includes('added') || category.includes('credit') || category.includes('topup') || amount > 0) {
+      totals.added += Math.abs(amount);
+    }
+    return totals;
+  }, { added: 0, spent: 0, refunded: 0 });
 }
 
 export default function WalletPage() {
@@ -59,20 +88,32 @@ export default function WalletPage() {
   const [loadError, setLoadError] = useState('');
   const [topUpAmount, setTopUpAmount] = useState('2000');
   const [topUpMessage, setTopUpMessage] = useState('');
+  const [topUpError, setTopUpError] = useState(false);
+  const [topUpLoading, setTopUpLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('All');
+  const [transactions, setTransactions] = useState([]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
-    getMyProfile()
-      .then((result) => {
-        if (active) {
-          setProfile({ ...(getStoredUser() || {}), ...(result?.profile || result || {}) });
+    setLoading(true);
+    Promise.allSettled([getWalletTransactions(), getMyProfile()])
+      .then(([transactionResult, profileResult]) => {
+        if (!active) return;
+        const errors = [];
+        if (transactionResult.status === 'fulfilled') {
+          const body = transactionResult.value?.data || transactionResult.value;
+          const transactionPayload = body?.transactions || body?.results || body;
+          if (Array.isArray(transactionPayload)) setTransactions(transactionPayload);
+          else errors.push('Transactions: the API returned an unexpected response.');
+        } else {
+          errors.push(`Transactions: ${transactionResult.reason?.message || 'could not be loaded'}`);
         }
-      })
-      .catch((error) => {
-        if (active) {
-          setLoadError(error.message || 'Wallet profile details could not be loaded.');
+
+        if (profileResult.status === 'fulfilled' && profileResult.value) {
+          setProfile({ ...(getStoredUser() || {}), ...(profileResult.value?.profile || profileResult.value || {}) });
         }
+        setLoadError(errors.join(' '));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -81,37 +122,15 @@ export default function WalletPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   const role = profile.want_to || profile.wantTo || profile.accountIntent || '';
   const details = getRoleDetails(role);
-  const balance = profile.wallet_balance ?? profile.walletBalance ?? profile.wallet?.balance ?? 2000;
-  const totalAdded = profile.total_added ?? profile.totalAdded ?? 8500;
-  const totalSpent = profile.total_spent ?? profile.totalSpent ?? 6200;
-  const lastAddedNote = profile.last_added_note || '+ ₹500 added on 25 Sep 2026';
-
-  const rawTransactions = Array.isArray(profile.transactions)
-    ? profile.transactions
-    : Array.isArray(profile.wallet?.transactions)
-    ? profile.wallet.transactions
-    : [
-        {
-          id: '1',
-          type: 'Wallet Top Up',
-          subtitle: 'Added via UPI',
-          date: '25 Sep 2026, 10:24 AM',
-          amount: 2000,
-          category: 'Added'
-        },
-        {
-          id: '2',
-          type: 'Booking Payment',
-          subtitle: 'Booking with Sara',
-          date: '22 Sep 2026, 04:15 PM',
-          amount: -1200,
-          category: 'Spent'
-        }
-      ];
+  const rawTransactions = transactions;
+  const transactionTotals = useMemo(() => summarizeTransactions(rawTransactions), [rawTransactions]);
+  const balance = transactionTotals.added + transactionTotals.refunded - transactionTotals.spent;
+  const totalAdded = transactionTotals.added;
+  const totalSpent = transactionTotals.spent;
 
   const filteredTransactions = rawTransactions.filter(tx => {
     if (activeTab === 'All') return true;
@@ -121,17 +140,29 @@ export default function WalletPage() {
     return true;
   });
 
-  function handleAddMoney(event) {
+  async function handleAddMoney(event) {
     event.preventDefault();
     setTopUpMessage('');
     const amount = Number(topUpAmount);
 
     if (!Number.isFinite(amount) || amount < 100) {
-      setTopUpMessage('Please enter an amount greater than ₹100.');
+      setTopUpError(true);
+      setTopUpMessage('Please enter an amount of at least ₹100.');
       return;
     }
 
-    setTopUpMessage('Payment gateway integration required. No funds were added.');
+    setTopUpLoading(true);
+    setTopUpError(false);
+    try {
+      const result = await topUpWallet(amount);
+      setTopUpMessage(result?.message || 'Money added to your wallet successfully.');
+      setRefreshKey((key) => key + 1);
+    } catch (error) {
+      setTopUpError(true);
+      setTopUpMessage(error.message || 'Unable to add money. Please try again.');
+    } finally {
+      setTopUpLoading(false);
+    }
   }
 
   return (
@@ -184,7 +215,7 @@ export default function WalletPage() {
             <div className="mt-6 flex items-center justify-between pt-2">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white backdrop-blur-md">
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400 text-[10px] text-purple-900 font-bold">↑</span>
-                {lastAddedNote}
+                Wallet balance
               </div>
 
               <button className="inline-flex items-center gap-1 rounded-xl bg-white/20 border border-white/30 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/30 transition backdrop-blur-md">
@@ -203,7 +234,7 @@ export default function WalletPage() {
               </div>
               <span className="text-[11px] font-medium text-slate-400">Total Added</span>
               <span className="mt-0.5 text-base font-bold text-slate-800">{formatMoney(totalAdded)}</span>
-              <span className="text-[10px] text-slate-400">This month</span>
+              <span className="text-[10px] text-slate-400">All transactions</span>
             </div>
 
             {/* Total Spent */}
@@ -213,7 +244,7 @@ export default function WalletPage() {
               </div>
               <span className="text-[11px] font-medium text-slate-400">Total Spent</span>
               <span className="mt-0.5 text-base font-bold text-slate-800">{formatMoney(totalSpent)}</span>
-              <span className="text-[10px] text-slate-400">This month</span>
+              <span className="text-[10px] text-slate-400">All transactions</span>
             </div>
 
             {/* Available Balance */}
@@ -289,14 +320,15 @@ export default function WalletPage() {
                     </div>
                     <button
                       type="submit"
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 transition hover:bg-purple-700 active:scale-95"
+                      disabled={topUpLoading}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-md shadow-purple-200 transition hover:bg-purple-700 active:scale-95 disabled:cursor-wait disabled:opacity-60"
                     >
-                      <PlusCircle className="h-4 w-4" /> Add Money
+                      <PlusCircle className="h-4 w-4" /> {topUpLoading ? 'Adding…' : 'Add Money'}
                     </button>
                   </div>
 
                   {topUpMessage && (
-                    <p role="status" className="text-xs font-medium text-amber-700">
+                    <p role={topUpError ? 'alert' : 'status'} className={`text-xs font-medium ${topUpError ? 'text-rose-700' : 'text-emerald-700'}`}>
                       {topUpMessage}
                     </p>
                   )}
@@ -415,7 +447,9 @@ export default function WalletPage() {
             {filteredTransactions.length > 0 ? (
               <div className="divide-y divide-slate-100">
                 {filteredTransactions.map((tx, idx) => {
-                  const isCredit = tx.category === 'Added' || (tx.amount && Number(tx.amount) > 0);
+                  const amount = getTransactionAmount(tx);
+                  const category = String(tx.category || '').toLowerCase();
+                  const isCredit = ['added', 'refunded'].includes(category) || (amount != null && amount >= 0);
                   return (
                     <div key={tx.id || idx} className="flex items-center justify-between py-4 transition hover:bg-slate-50/60 rounded-xl px-2 -mx-2">
                       <div className="flex items-center gap-3">
@@ -432,7 +466,7 @@ export default function WalletPage() {
                         </div>
                       </div>
                       <span className={`text-sm font-bold ${isCredit ? 'text-emerald-600' : 'text-red-500'}`}>
-                        {isCredit ? `+ ${formatMoney(tx.amount)}` : `- ${formatMoney(Math.abs(tx.amount))}`}
+                        {amount == null ? '—' : `${isCredit ? '+' : '-'} ${formatMoney(Math.abs(amount))}`}
                       </span>
                     </div>
                   );
