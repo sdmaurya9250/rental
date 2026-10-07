@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getStoredUser, isAuthenticated } from '../auth/auth';
+import { getStoredUser, getToken, isAuthenticated } from '../auth/auth';
 import { formatPrice } from '../data/people';
 import AppointmentDetails from '../components/AppointmentDetails';
 import { approveBookingRecord, fetchBookingRecords, rejectBookingRecord } from './finderApi';
@@ -10,6 +10,16 @@ const tabs = ['All Bookings', 'Upcoming', 'Completed', 'Cancelled'];
 function formatDate(date) {
   if (!date) return 'Date not set';
   return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function formatDuration(minutes) {
+  const value = Number(minutes);
+  if (!Number.isFinite(value) || value <= 0) return 'Duration not set';
+  const hours = Math.floor(value / 60);
+  const remainingMinutes = value % 60;
+  if (!hours) return `${remainingMinutes} min`;
+  if (!remainingMinutes) return `${hours} hr${hours === 1 ? '' : 's'}`;
+  return `${hours} hr ${remainingMinutes} min`;
 }
 
 function getRole(user) {
@@ -73,6 +83,11 @@ export default function BookingsList() {
   const [approvingBooking, setApprovingBooking] = useState(null);
   const [submittingRejection, setSubmittingRejection] = useState(null);
   const [actionError, setActionError] = useState('');
+  const [ratingBooking, setRatingBooking] = useState(null);
+  const [ratingValue, setRatingValue] = useState(0);
+  const [ratingMessage, setRatingMessage] = useState('');
+  const [ratingError, setRatingError] = useState('');
+  const [submittingRating, setSubmittingRating] = useState(false);
 
   const signedIn = isAuthenticated();
 
@@ -170,6 +185,41 @@ export default function BookingsList() {
     }
   }
 
+  async function submitBookingRating(event) {
+    event.preventDefault();
+    if (!ratingBooking || ratingValue < 1) {
+      setRatingError('Choose a star rating before submitting.');
+      return;
+    }
+
+    setSubmittingRating(true);
+    setRatingError('');
+    try {
+      const token = getToken();
+      const response = await fetch(`https://rental-backend.kudoo-live.workers.dev/api/bookings/${encodeURIComponent(ratingBooking.id)}/rating`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ rating: ratingValue, review: ratingMessage.trim(), message: ratingMessage.trim() }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.detail || result.message || 'Unable to submit your rating.');
+
+      setBookings((current) => current.map((booking) => booking.id === ratingBooking.id
+        ? { ...booking, user_rating: ratingValue, user_review: ratingMessage.trim(), rating_submitted: true }
+        : booking));
+      setRatingBooking(null);
+      setRatingValue(0);
+      setRatingMessage('');
+    } catch (requestError) {
+      setRatingError(requestError.message || 'Unable to submit your rating.');
+    } finally {
+      setSubmittingRating(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#f8f9fe] p-4 text-[#1a1c23] sm:p-6 lg:p-8">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -180,101 +230,148 @@ export default function BookingsList() {
           <p className="mt-0.5 text-sm text-[#6b7280]">Track and manage all your appointments and booking requests.</p>
         </div>
 
-        {/* Top Summary Metrics */}
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-          <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-gray-100 bg-white p-2.5 shadow-sm sm:gap-4 sm:p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-50 text-purple-600 sm:h-12 sm:w-12 sm:rounded-xl">
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-            </div>
-            <div>
-              <p className="text-xl font-bold leading-none text-gray-900 sm:text-xl">{metrics.upcoming}</p>
-              <p className="mt-1 text-[10px] font-medium leading-tight text-gray-500 sm:text-xs">Upcoming</p>
-            </div>
-          </div>
+{/* Top Summary Metrics */}
+<div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
+  {/* Upcoming */}
+  <div className="flex items-center gap-2.5 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:gap-3.5 sm:p-4">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 sm:h-12 sm:w-12">
+      <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    </div>
+    <div className="min-w-0 flex-1">
+      <p className="text-lg font-bold leading-tight text-gray-900 sm:text-xl">{metrics.upcoming}</p>
+      <p className="truncate text-xs font-medium text-gray-500">Upcoming</p>
+    </div>
+  </div>
 
-          <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-gray-100 bg-white p-2.5 shadow-sm sm:gap-4 sm:p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 sm:h-12 sm:w-12 sm:rounded-xl">
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            </div>
-            <div>
-              <p className="text-xl font-bold leading-none text-gray-900">{metrics.completed}</p>
-              <p className="mt-1 text-[10px] font-medium leading-tight text-gray-500 sm:text-xs">Completed</p>
-            </div>
-          </div>
+  {/* Completed */}
+  <div className="flex items-center gap-2.5 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:gap-3.5 sm:p-4">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 sm:h-12 sm:w-12">
+      <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    </div>
+    <div className="min-w-0 flex-1">
+      <p className="text-lg font-bold leading-tight text-gray-900 sm:text-xl">{metrics.completed}</p>
+      <p className="truncate text-xs font-medium text-gray-500">Completed</p>
+    </div>
+  </div>
 
-          <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-gray-100 bg-white p-2.5 shadow-sm sm:gap-4 sm:p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600 sm:h-12 sm:w-12 sm:rounded-xl">
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            </div>
-            <div>
-              <p className="text-xl font-bold leading-none text-gray-900">{metrics.cancelled}</p>
-              <p className="mt-1 text-[10px] font-medium leading-tight text-gray-500 sm:text-xs">Cancelled</p>
-            </div>
-          </div>
+  {/* Cancelled */}
+  <div className="flex items-center gap-2.5 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:gap-3.5 sm:p-4">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 sm:h-12 sm:w-12">
+      <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    </div>
+    <div className="min-w-0 flex-1">
+      <p className="text-lg font-bold leading-tight text-gray-900 sm:text-xl">{metrics.cancelled}</p>
+      <p className="truncate text-xs font-medium text-gray-500">Cancelled</p>
+    </div>
+  </div>
 
-          <div className="hidden items-center gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm sm:flex">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500">Total Spent</p>
-              <p className="text-xl font-bold text-gray-900">{formatPrice(metrics.totalSpent)}</p>
-              <p className="text-xs text-gray-400">Across all bookings</p>
-            </div>
-          </div>
-        </div>
+  {/* Total Spent */}
+  <div className="flex items-center gap-2.5 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:gap-3.5 sm:p-4">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 sm:h-12 sm:w-12">
+      <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+      </svg>
+    </div>
+    <div className="min-w-0 flex-1">
+      <p className="truncate text-lg font-bold leading-tight text-gray-900 sm:text-xl">{formatPrice(metrics.totalSpent)}</p>
+      <p className="truncate text-xs font-medium text-gray-500">Total Spent</p>
+    </div>
+  </div>
+</div>
 
-        {/* Filter Navigation & Search Bar */}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="order-2 flex w-full items-center gap-1.5 overflow-x-auto rounded-2xl border border-gray-100 bg-white p-1.5 shadow-sm lg:order-1 lg:w-auto">
-            {tabs.map((tab) => {
-              const isActive = activeTab === tab;
-              return (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveTab(tab)}
-                  className={`flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all sm:px-4 ${
-                    isActive
-                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow'
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  {tab === 'All Bookings' && (
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
-                  )}
-                  {tab === 'Upcoming' && (
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                  )}
-                  {tab === 'Completed' && (
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/></svg>
-                  )}
-                  {tab === 'Cancelled' && (
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                  )}
-                  {tab === 'All Bookings' ? 'All' : tab}
-                </button>
-              );
-            })}
-          </div>
+{/* Filter Navigation & Search Bar */}
+<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+  
+  {/* Tabs Section: Dropdown on Mobile, Pill Buttons on sm+ */}
+  <div className="order-2 w-full lg:order-1 lg:w-auto">
+    
+    {/* 1. Mobile Dropdown (Visible only below 'sm' screens) */}
+    <div className="relative sm:hidden">
+      <select
+        value={activeTab}
+        onChange={(e) => setActiveTab(e.target.value)}
+        className="w-full appearance-none rounded-2xl border border-gray-200 bg-white py-2.5 pl-4 pr-10 text-xs font-semibold text-gray-800 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+      >
+        {tabs.map((tab) => (
+          <option key={tab} value={tab}>
+            {tab}
+          </option>
+        ))}
+      </select>
+      {/* Down Chevron Icon */}
+      <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400">
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+    </div>
 
-          <div className="order-1 flex w-full items-center gap-2.5 lg:order-2 lg:w-auto">
-            <div className="relative min-w-0 flex-1 lg:w-64 lg:flex-none">
-              <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-              <input
-                type="text"
-                placeholder="Search bookings..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-full border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm font-medium placeholder-gray-400 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
-              />
-            </div>
-            <button type="button" className="flex shrink-0 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-purple-700 shadow-sm hover:bg-gray-50">
-              <svg className="h-4 w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-              Filter
-            </button>
-          </div>
-        </div>
+    {/* 2. Desktop/Laptop Buttons (Hidden on mobile) */}
+    <div className="hidden sm:flex sm:items-center sm:gap-1.5 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-sm">
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab;
+        return (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all sm:px-4 ${
+              isActive
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+            }`}
+          >
+            {tab === 'All Bookings' && (
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+            )}
+            {tab === 'Upcoming' && (
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            {tab === 'Completed' && (
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {tab === 'Cancelled' && (
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            <span>{tab === 'All Bookings' ? 'All' : tab}</span>
+          </button>
+        );
+      })}
+    </div>
+
+  </div>
+
+  {/* Search & Filter Bar */}
+  <div className="order-1 flex w-full items-center gap-2 lg:order-2 lg:w-auto">
+    <div className="relative min-w-0 flex-1 lg:w-64 lg:flex-none">
+      <svg className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+      <input
+        type="text"
+        placeholder="Search bookings..."
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="w-full rounded-2xl border border-gray-200 bg-white py-2.5 pl-10 pr-3.5 text-xs font-medium placeholder-gray-400 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 sm:rounded-full sm:py-3 sm:text-sm"
+      />
+    </div>
+  </div>
+
+</div>
 
         {actionError && <p role="alert" className="text-xs font-medium text-rose-600">{actionError}</p>}
 
@@ -301,13 +398,15 @@ export default function BookingsList() {
               const isIncoming = direction === 'incoming';
               const status = bookingStatus(booking);
               const canRespond = isIncoming && status === 'pending';
+              const canRate = role === 'find' && !isIncoming && status === 'completed';
               const chatPartnerId = getChatPartnerId(booking, user);
               const canChat = ['approved', 'confirmed'].includes(status) && chatPartnerId;
               const isExpanded = expandedBooking === booking.id;
               const personName = booking.person_name || booking.customer_name || booking.rent_person?.name || 'Unknown person';
               const personImage = booking.person_image || booking.customer_image || booking.rent_person?.image || 'https://i.pravatar.cc/150?img=1';
 
-              const tags = booking.tags || booking.services || ['Companion', 'Chat', 'Dinner', 'Events'];
+              const serviceCandidate = booking.service_name || booking.service || booking.services?.[0];
+              const bookedService = typeof serviceCandidate === 'string' ? serviceCandidate : serviceCandidate?.name;
 
               return (
                 <article key={booking.id} className="overflow-hidden rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
@@ -336,13 +435,13 @@ export default function BookingsList() {
                         </div>
 
                         {/* Service Tags */}
-                        <div className="flex flex-wrap gap-1.5">
-                          {tags.slice(0, 4).map((tag, i) => (
-                            <span key={i} className="rounded-md bg-purple-50/60 px-2.5 py-0.5 text-[11px] font-medium text-purple-700">
-                              {tag}
+                        {bookedService && (
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className="rounded-md bg-purple-50/60 px-2.5 py-0.5 text-[11px] font-medium text-purple-700">
+                              {bookedService}
                             </span>
-                          ))}
-                        </div>
+                          </div>
+                        )}
 
                         {/* Metadata */}
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-500">
@@ -356,7 +455,7 @@ export default function BookingsList() {
                           </div>
                           <div className="flex items-center gap-1.5">
                             <svg className="h-3.5 w-3.5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            <span>{booking.duration_minutes || 120} min</span>
+                            <span>{formatDuration(booking.duration_minutes)}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <svg className="h-3.5 w-3.5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -410,13 +509,29 @@ export default function BookingsList() {
                         )}
 
                         {status === 'completed' && (
-                          <button
-                            type="button"
-                            className="flex items-center gap-1.5 rounded-xl bg-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-purple-700"
-                          >
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                            Book Again
-                          </button>
+                          <>
+                            {canRate && (booking.rating_submitted || booking.user_rating ? (
+                              <span className="inline-flex items-center gap-1 rounded-xl bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-700">
+                                <span aria-hidden="true">★</span> Rated {booking.user_rating || ''}
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => { setRatingBooking(booking); setRatingValue(0); setRatingMessage(''); setRatingError(''); }}
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
+                              >
+                                <span aria-hidden="true" className="text-base leading-none">★</span>
+                                Rate this booking
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              className="flex items-center gap-1.5 rounded-xl bg-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-purple-700"
+                            >
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                              Book Again
+                            </button>
+                          </>
                         )}
 
                         {!canRespond && status !== 'completed' && (
@@ -523,6 +638,46 @@ export default function BookingsList() {
           </div>
         )}
       </div>
+      
+      {ratingBooking && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !submittingRating) setRatingBooking(null); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="booking-rating-title" className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-violet-600">Completed booking</p>
+                <h2 id="booking-rating-title" className="mt-1 text-xl font-bold text-slate-900">Rate {ratingBooking.person_name || ratingBooking.rent_person?.name || 'your companion'}</h2>
+                <p className="mt-1 text-sm text-slate-500">How was your experience? Your feedback helps others.</p>
+              </div>
+              <button type="button" aria-label="Close rating dialog" onClick={() => setRatingBooking(null)} disabled={submittingRating} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50">×</button>
+            </div>
+
+            <form onSubmit={submitBookingRating} className="mt-5">
+              <fieldset>
+                <legend className="text-sm font-semibold text-slate-700">Your rating</legend>
+                <div className="mt-2 flex items-center gap-2" role="radiogroup" aria-label="Rating from 1 to 5 stars">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button key={star} type="button" role="radio" aria-checked={ratingValue === star} aria-label={`${star} star${star > 1 ? 's' : ''}`} onClick={() => setRatingValue(star)} className={`rounded-lg p-1 text-3xl transition hover:scale-110 ${ratingValue >= star ? 'text-amber-400' : 'text-slate-200'}`}>
+                      ★
+                    </button>
+                  ))}
+                  <span className="ml-2 text-sm font-medium text-slate-500">{ratingValue ? `${ratingValue} / 5` : 'Select a rating'}</span>
+                </div>
+              </fieldset>
+
+              <label htmlFor="booking-rating-message" className="mt-5 block text-sm font-semibold text-slate-700">
+                Message <span className="font-normal text-slate-400">(optional)</span>
+                <textarea id="booking-rating-message" rows="4" maxLength="1000" value={ratingMessage} onChange={(event) => setRatingMessage(event.target.value)} placeholder="Share a little about your experience" className="mt-2 w-full resize-y rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-100" />
+              </label>
+
+              {ratingError && <p role="alert" className="mt-3 text-sm font-medium text-rose-600">{ratingError}</p>}
+              <div className="mt-5 flex justify-end gap-2">
+                <button type="button" onClick={() => setRatingBooking(null)} disabled={submittingRating} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50">Cancel</button>
+                <button type="submit" disabled={submittingRating || ratingValue < 1} className="rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50">{submittingRating ? 'Submitting…' : 'Submit rating'}</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

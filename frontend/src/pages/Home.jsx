@@ -4,7 +4,7 @@ import {
   Smartphone, UserPlus, Sparkles, Inbox, Handshake, CircleDollarSign, TrendingUp,
   Clapperboard, Users, HeartHandshake, PartyPopper, ShoppingBag, Stethoscope,
   Home as HomeIcon, Plane, Theater, Dumbbell, Music, Coffee, Utensils,
-  MoreHorizontal, Clock, Lock, CheckCircle2, Heart, ChevronRight
+  MoreHorizontal, Clock, Lock, CheckCircle2, Heart, ChevronRight, Camera, Video
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import HomeHeader from '../components/HomeHeader';
@@ -15,7 +15,7 @@ import AuthModal from '../components/AuthModal';
 // Same left/right spacing for every section
 const CONTAINER = 'w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8';
 // Same (compact) top/bottom spacing for every section
-const SECTION_Y = 'py-10 lg:py-12';
+const SECTION_Y = 'py-6 lg:py-8';
 
 /* ---------- Shared section heading (same font/size/colour everywhere) ---------- */
 function SectionHeading({ eyebrow, title, subtitle, className = '' }) {
@@ -71,6 +71,12 @@ export default function Home() {
     { icon: <ShoppingBag className="w-5 h-5" />, title: 'Shopping Buddy', subtitle: 'Groceries, errands, or shopping', price: '₹2,000', duration: '1 hour' },
     { icon: <Stethoscope className="w-5 h-5" />, title: 'Medical Support', subtitle: 'Hospital & appointment assistance', price: '₹2,000', duration: '1 hour' },
     { icon: <HomeIcon className="w-5 h-5" />, title: 'Domestic Help', subtitle: 'Light support & organizing', price: '₹2,000', duration: '1 hour' },
+    { icon: <Camera className="w-5 h-5" />, title: 'Photo Shoot Companion', subtitle: 'Explore locations and capture great photos together' },
+    { icon: <Video className="w-5 h-5" />, title: 'Video Shoot Companion', subtitle: 'Join a vlog, reel, or short video shoot' },
+    { icon: <Sparkles className="w-5 h-5" />, title: 'Content Creator Buddy', subtitle: 'Brainstorm and create social media content together' },
+    { icon: <Star className="w-5 h-5" />, title: 'Influencer Collaboration', subtitle: 'Meet for creator projects, ideas, and content sessions' },
+    { icon: <MapPin className="w-5 h-5" />, title: 'Explore the City', subtitle: 'Visit local attractions, markets, and neighborhoods' },
+    { icon: <Music className="w-5 h-5" />, title: 'Concert Companion', subtitle: 'Enjoy live music and concerts together' },
   ];
 
   const whyJoinFeatures = [
@@ -148,11 +154,11 @@ export default function Home() {
               <span className="bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] bg-clip-text text-transparent">
                 Rental Companion
               </span> <br />
-              for Any Occasion
+              for Every Moment
             </h1>
 
             <p className="text-gray-500 text-sm sm:text-base max-w-lg leading-relaxed font-normal">
-              Safe, verified and trusted companions for events, travel, dining, movies and more. Choose your service, location and time.
+             Connect with verified companions for travel, events, dining, movies and more. Choose who you want, where you want, and when you want.
             </p>
 
             <div className="grid grid-cols-2 gap-2 pt-1 sm:flex sm:flex-wrap sm:items-center sm:gap-4">
@@ -342,9 +348,15 @@ export default function Home() {
                   <p className="mt-1 line-clamp-2 min-h-[32px] text-[10px] font-medium leading-4 text-gray-400">{item.subtitle}</p>
                 </div>
 
-                <div className="mt-3 flex items-center">
-                  <span className="text-sm font-black text-violet-700">{item.price}</span>
-                  <span className="ml-1 text-[9px] font-semibold text-gray-400">/ {item.duration}</span>
+                <div className="mt-3 flex min-h-5 items-center">
+                  {item.price ? (
+                    <>
+                      <span className="text-sm font-black text-violet-700">{item.price}</span>
+                      <span className="ml-1 text-[9px] font-semibold text-gray-400">/ {item.duration}</span>
+                    </>
+                  ) : (
+                    <span className="text-[10px] font-semibold text-violet-700">Rates vary by profile</span>
+                  )}
                 </div>
 
                 <button

@@ -204,12 +204,11 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#211536]/35 backdrop-blur-[2px] p-3 overflow-y-auto">
-      {/* Modal Box Container */}
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden my-8 transform transition-all">
-
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-[2px] p-0 sm:p-4">
+      <div className="relative flex flex-col w-full max-w-md max-h-[92dvh] sm:max-h-[88dvh] rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
+        
         {/* Header Gradient Strip */}
-        <div className="bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] p-5 text-white relative">
+        <div className="relative shrink-0 bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] px-3 py-2 sm:p-4 text-white">
           <button
             onClick={onClose}
             className="absolute right-4 top-4 text-white/80 hover:text-white p-1 rounded-full transition"
@@ -219,20 +218,17 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
 
           <BrandLogo dark compact onClick={onClose} className="mb-3" />
           <h2 className="text-2xl font-bold tracking-tight">{mode === 'register' ? 'Create your account' : 'Welcome back'}</h2>
-          <p className="text-xs text-white/90 mt-1 font-medium">
-            Your social & lifestyle support platform
-          </p>
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 space-y-4 text-gray-800 max-h-[82vh] overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-3 sm:space-y-4">
 
           {/* Main Mode Toggle Tabs (Login vs Register) */}
           <div className="bg-gray-100 p-1 rounded-xl flex items-center">
             <button
               type="button"
               onClick={() => setMode('login')}
-              className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition duration-200 ${
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition duration-200 ${
                 mode === 'login' ? 'bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -241,7 +237,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
             <button
               type="button"
               onClick={() => setMode('register')}
-              className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition duration-200 ${
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition duration-200 ${
                 mode === 'register' ? 'bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -368,17 +364,6 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                   </div>
                 </div>
               )}
-
-              {/* Action Submit Button */}
-              <button
-                type="button"
-                onClick={handlePrimaryAction}
-                disabled={loading}
-                className="w-full mt-2 py-3 bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] hover:opacity-95 text-white font-semibold rounded-xl text-sm transition duration-200 shadow-md shadow-violet-500/20 disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                {primaryLabel()}
-              </button>
             </div>
           )}
 
@@ -391,20 +376,20 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                   <label className="text-xs font-semibold text-gray-700">Mobile Number <span className="text-red-500">*</span></label>
                   <div className="flex rounded-xl border border-gray-300 overflow-hidden focus-within:border-[#8a1cf7] transition">
                     <span className="bg-gray-50 border-r border-gray-300 px-3 flex items-center text-xs font-semibold text-gray-600">+91</span>
-                    <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} placeholder="Enter mobile number" maxLength={10} className="w-full bg-white px-3 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
+                    <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} placeholder="Enter mobile number" maxLength={10} className="w-full bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none" />
                   </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-gray-700">Email <span className="text-red-500">*</span></label>
-                  <div className="relative"><Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#8a1cf7] transition" /></div>
+                  <div className="relative"><Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" /><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#8a1cf7] transition" /></div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-gray-700">Password <span className="text-red-500">*</span></label>
-                  <div className="relative"><Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" /><input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-10 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#8a1cf7] transition" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div>
+                  <div className="relative"><Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" /><input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-10 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#8a1cf7] transition" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-gray-700">Confirm Password <span className="text-red-500">*</span></label>
-                  <div className="relative"><Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" /><input type={showPassword ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter your password" className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#8a1cf7] transition" /></div>
+                  <div className="relative"><Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" /><input type={showPassword ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter your password" className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#8a1cf7] transition" /></div>
                 </div>
               </div>
 
@@ -419,7 +404,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                         key={option.value}
                         type="button"
                         onClick={() => setAccountIntent(option.value)}
-                        className={`flex min-h-14 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center text-[11px] font-semibold transition ${
+                        className={`flex flex-col sm:flex-row items-center justify-center p-2 rounded-lg border text-center text-[10px] sm:text-[11px] font-semibold transition ${
                           selected ? 'border-[#8a1cf7] bg-violet-50 text-[#8a1cf7] ring-1 ring-violet-200' : 'border-gray-300 bg-white text-gray-700 hover:border-violet-300'
                         }`}
                       >
@@ -431,119 +416,120 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                 </div>
               </div>
 
-<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-  {/* CITY */}
-  <div className="space-y-1.5">
-    <label className="text-xs font-semibold text-gray-700">
-      City <span className="text-red-500">*</span>
-    </label>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {/* CITY */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-700">
+                    City <span className="text-red-500">*</span>
+                  </label>
 
-    <div className="relative">
-      {/* Location Icon */}
-      <MapPin
-        className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
-      />
+                  <div className="relative">
+                    {/* Location Icon */}
+                    <MapPin
+                      className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                    />
 
-      <input
-        type="text"
-        value={city}
-        onChange={(event) => setCity(event.target.value)}
-        placeholder="Your city"
-        className="w-full rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-12 text-sm text-gray-800 placeholder-gray-400 transition focus:border-[#8a1cf7] focus:outline-none focus:ring-2 focus:ring-[#8a1cf7]/10"
-      />
+                    <input
+                      type="text"
+                      value={city}
+                      onChange={(event) => setCity(event.target.value)}
+                      placeholder="Your city"
+                      className="w-full rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-12 text-sm text-gray-800 placeholder-gray-400 transition focus:border-[#8a1cf7] focus:outline-none focus:ring-2 focus:ring-[#8a1cf7]/10"
+                    />
 
-      {/* Detect Location */}
-      {(accountIntent === 'Become a RentPeople' ||
-        accountIntent === 'Both') && (
-        <button
-          type="button"
-          onClick={detectRegistrationCity}
-          disabled={detectingLocation}
-          title="Detect my location"
-          aria-label={detectingLocation ? 'Detecting your location' : 'Detect my location'}
-          className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] text-white shadow-sm transition hover:scale-105 disabled:cursor-wait disabled:opacity-60"
-        >
-          {detectingLocation ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <MapPin className="h-4 w-4" />
-          )}
-        </button>
-      )}
-    </div>
+                    {/* Detect Location */}
+                    {(accountIntent === 'Become a RentPeople' ||
+                      accountIntent === 'Both') && (
+                      <button
+                        type="button"
+                        onClick={detectRegistrationCity}
+                        disabled={detectingLocation}
+                        title="Detect my location"
+                        aria-label={detectingLocation ? 'Detecting your location' : 'Detect my location'}
+                        className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] text-white shadow-sm transition hover:scale-105 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        {detectingLocation ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <MapPin className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
+                  </div>
 
-    {/* Small detected status */}
-    {coordinates && city && (
-      <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-[#8a1cf7]">
-        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-        Location detected: {city}
-      </div>
-    )}
-    {!coordinates && (accountIntent === 'Become a RentPeople' || accountIntent === 'Both') && (
-      <p className="px-1 text-[11px] leading-4 text-gray-500">
-        Tap the pin and choose Allow when Chrome asks. If location is blocked, open the site settings beside the address bar, allow Location, then try again.
-      </p>
-    )}
-  </div>
+                  {/* Small detected status */}
+                  {coordinates && city && (
+                    <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-[#8a1cf7]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                      Location detected: {city}
+                    </div>
+                  )}
+                  {!coordinates && (accountIntent === 'Become a RentPeople' || accountIntent === 'Both') && (
+                    <p className="px-1 text-[11px] leading-4 text-gray-500">
+                      Tap the pin and choose Allow when Chrome asks. If location is blocked, open the site settings beside the address bar, allow Location, then try again.
+                    </p>
+                  )}
+                </div>
 
-  {/* PINCODE */}
-  <div className="space-y-1.5">
-    <label className="text-xs font-semibold text-gray-700">
-      Pincode <span className="text-red-500">*</span>
-    </label>
+                {/* PINCODE */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-gray-700">
+                    Pincode <span className="text-red-500">*</span>
+                  </label>
 
-    <div className="relative">
-      <Hash
-        className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
-      />
+                  <div className="relative">
+                    <Hash
+                      className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                    />
 
-      <input
-        type="text"
-        inputMode="numeric"
-        maxLength="6"
-        value={pincode}
-        onChange={(event) =>
-          setPincode(event.target.value.replace(/\D/g, ''))
-        }
-        placeholder="6-digit"
-        className="w-full rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-800 placeholder-gray-400 transition focus:border-[#8a1cf7] focus:outline-none focus:ring-2 focus:ring-[#8a1cf7]/10"
-      />
-    </div>
-  </div>
-</div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength="6"
+                      value={pincode}
+                      onChange={(event) =>
+                        setPincode(event.target.value.replace(/\D/g, ''))
+                      }
+                      placeholder="6-digit"
+                      className="w-full rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-800 placeholder-gray-400 transition focus:border-[#8a1cf7] focus:outline-none focus:ring-2 focus:ring-[#8a1cf7]/10"
+                    />
+                  </div>
+                </div>
+              </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-700">Gender <span className="text-red-500">*</span></label>
-                <select value={gender} onChange={(event) => setGender(event.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-800 focus:border-[#8a1cf7] focus:outline-none">
+                <select value={gender} onChange={(event) => setGender(event.target.value)} className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm text-gray-800 focus:border-[#8a1cf7] focus:outline-none">
                   <option value="" disabled>Select gender</option>
                   {GENDER_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
               </div>
-
-              {/* Action Submit Button */}
-              <button
-                type="button"
-                onClick={handlePrimaryAction}
-                disabled={loading}
-                className="w-full mt-2 py-3 bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] hover:opacity-95 text-white font-semibold rounded-xl text-sm transition duration-200 shadow-md shadow-violet-500/20 disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                {primaryLabel()}
-              </button>
             </div>
           )}
 
-          {/* Footer Terms Note */}
-          <p className="text-center text-[11px] text-gray-500 pt-2">
+        </div>
+
+        {/* Pinned Action Footer */}
+        <div className="shrink-0 bg-white border-t border-gray-100 p-3 sm:p-4">
+          <button
+            type="button"
+            onClick={handlePrimaryAction}
+            disabled={loading}
+            className="w-full py-2.5 sm:py-3 bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] hover:opacity-95 text-white font-semibold rounded-xl text-sm transition shadow-md shadow-violet-500/20 disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {primaryLabel()}
+          </button>
+
+          <p className="text-center text-[10px] text-gray-500 mt-2">
             By continuing, you agree to our{' '}
-            <a href="#terms" className="text-[#8a1cf7] hover:underline">Terms</a>{' '}
-            and{' '}
+            <a href="#terms" className="text-[#8a1cf7] hover:underline">Terms</a> &{' '}
             <a href="#privacy" className="text-[#8a1cf7] hover:underline">Privacy Policy</a>
           </p>
-
         </div>
+
       </div>
     </div>
   );
