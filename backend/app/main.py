@@ -13,6 +13,10 @@ from routes.messages import router as messages_router
 from routes.geo import router as geo_router
 from routes.wallet import router as wallet_router
 from routes.ratings import router as ratings_router
+from routes.kyc import router as kyc_router
+from routes.payout import router as payout_router
+from routes.payment_methods import router as payment_methods_router
+from routes.notifications import router as notifications_router
 
 app = FastAPI(title="RentPeople API", version="1.0.0")
 
@@ -35,7 +39,10 @@ app.include_router(messages_router, prefix="/api", tags=["Messages"])
 app.include_router(geo_router, prefix="/api", tags=["Geo"])
 app.include_router(wallet_router, prefix="/api", tags=["Wallet"])
 app.include_router(ratings_router, prefix="/api", tags=["Ratings"])
-
+app.include_router(kyc_router, prefix="/api", tags=["KYC"])
+app.include_router(payout_router, prefix="/api", tags=["Payout"])
+app.include_router(payment_methods_router, prefix="/api", tags=["PaymentMethods"])
+app.include_router(notifications_router, prefix="/api", tags=["Notifications"])
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
