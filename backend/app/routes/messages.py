@@ -152,26 +152,70 @@ async def get_messages(
     }
 
 
+# @router.post("/messages", status_code=status.HTTP_201_CREATED)
+# async def send_message(data: MessageCreate,request: Request,current_user: dict = Depends(get_current_user),):
+#     """Send a message to another user."""
+#     db = request.scope["env"].DB
+#     sender_id = current_user["id"]
+#     content = data.content.strip()
+#
+#     if not content:
+#         raise HTTPException(status_code=400, detail="Message cannot be empty")
+#
+#     if data.receiver_id == sender_id:
+#         raise HTTPException(status_code=400, detail="Cannot message yourself")
+#
+#     receiver = await db.prepare(
+#         "SELECT id FROM users WHERE id = ?"
+#     ).bind(data.receiver_id).first()
+#
+#     if not receiver:
+#         raise HTTPException(status_code=404, detail="Receiver not found")
+#
+#     msg_id = secrets.token_hex(8)
+#
+#     await db.prepare(
+#         """
+#         INSERT INTO messages (id, sender_id, receiver_id, content, is_read)
+#         VALUES (?, ?, ?, ?, 0)
+#         """
+#     ).bind(msg_id, sender_id, data.receiver_id, content).run()
+#
+#     return {
+#         "id": msg_id,
+#         "content": content,
+#         "from_me": True,
+#         "sender_id": sender_id,
+#         "receiver_id": data.receiver_id,
+#         "is_read": False,
+#         "message": "Message sent",
+#     }
+
 @router.post("/messages", status_code=status.HTTP_201_CREATED)
 async def send_message(
     data: MessageCreate,
     request: Request,
     current_user: dict = Depends(get_current_user),
 ):
-    """Send a message to another user."""
     db = request.scope["env"].DB
     sender_id = current_user["id"]
-    content = data.content.strip()
+
+    # Flutter + web field aliases
+    receiver_id = (data.receiver_id or data.to_user_id or "").strip()
+    content = (data.content or data.text or data.message or "").strip()
+
+    if not receiver_id:
+        raise HTTPException(status_code=400, detail="receiver_id or to_user_id is required")
 
     if not content:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
-    if data.receiver_id == sender_id:
+    if receiver_id == sender_id:
         raise HTTPException(status_code=400, detail="Cannot message yourself")
 
     receiver = await db.prepare(
         "SELECT id FROM users WHERE id = ?"
-    ).bind(data.receiver_id).first()
+    ).bind(receiver_id).first()
 
     if not receiver:
         raise HTTPException(status_code=404, detail="Receiver not found")
@@ -183,14 +227,14 @@ async def send_message(
         INSERT INTO messages (id, sender_id, receiver_id, content, is_read)
         VALUES (?, ?, ?, ?, 0)
         """
-    ).bind(msg_id, sender_id, data.receiver_id, content).run()
+    ).bind(msg_id, sender_id, receiver_id, content).run()
 
     return {
         "id": msg_id,
         "content": content,
         "from_me": True,
         "sender_id": sender_id,
-        "receiver_id": data.receiver_id,
+        "receiver_id": receiver_id,
         "is_read": False,
         "message": "Message sent",
     }
