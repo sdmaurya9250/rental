@@ -1411,18 +1411,46 @@ async def approve_booking(
             detail=f"Cannot approve booking with status: {booking.get('status')}",
         )
 
+    # total = float(booking.get("total_amount") or 0)
+    # provider_name = current_user.get("full_name") or "RentPeople"
+    #
+    # await debit_wallet_for_booking(
+    #     db,
+    #     user_id=booking["customer_id"],
+    #     amount=total,
+    #     booking_id=booking_id,
+    #     person_name=provider_name,
+    # )
+    #
+    # otp = _generate_otp()
+
+
     total = float(booking.get("total_amount") or 0)
     provider_name = current_user.get("full_name") or "RentPeople"
 
-    await debit_wallet_for_booking(
-        db,
-        user_id=booking["customer_id"],
-        amount=total,
-        booking_id=booking_id,
-        person_name=provider_name,
-    )
+    try:
+        await debit_wallet_for_booking(
+            db,
+            user_id=booking["customer_id"],
+            amount=total,
+            booking_id=booking_id,
+            person_name=provider_name,
+        )
+    except HTTPException as e:
+        if e.status_code == 400 and "Insufficient wallet balance" in str(e.detail):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Customer has insufficient wallet balance. "
+                    f"They need ₹{int(total)} to confirm this booking. "
+                    "Ask them to top up their wallet, then try Approve again."
+                ),
+            )
+        raise
 
     otp = _generate_otp()
+
+
     await db.prepare(
         """
         UPDATE bookings
