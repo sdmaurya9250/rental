@@ -77,7 +77,7 @@ export default function ProfilePage() {
 function ProfileDetails({ person }) {
   const signedInUser = getStoredUser() || {};
   const signedInRole = String(signedInUser.want_to || signedInUser.wantTo || signedInUser.accountIntent || '').trim().toLowerCase();
-  const isBecomeOnly = ['become a rentpeople', 'become a rentcopartner', 'become'].includes(signedInRole);
+  const isBecomeOnly = signedInRole === 'companion';
   const services = useMemo(() => (person.services || [
     { 
       title: 'Movie Partner', 
@@ -330,7 +330,7 @@ function ProfileDetails({ person }) {
                 <div className="p-2 rounded-lg bg-white text-purple-600 shadow-xs"><Briefcase className="w-4 h-4" /></div>
                 <div>
                   <p className="text-[10px] text-gray-400 font-medium">Role</p>
-                  <p className="text-xs font-semibold text-gray-700">{person.want_to || 'Become a RentCoPartner'}</p>
+                  <p className="text-xs font-semibold text-gray-700">{String(person.want_to || '').toLowerCase() === 'companion' ? 'Become a Partner' : 'Find a Partner'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">

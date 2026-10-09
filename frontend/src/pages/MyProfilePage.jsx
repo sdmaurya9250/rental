@@ -168,7 +168,7 @@ export default function MyProfilePage() {
   const [cameraError, setCameraError] = useState('');
   const user = getStoredUser() || {};
   const role = String(user.want_to || user.wantTo || user.accountIntent || '').trim().toLowerCase();
-  const isFinderRole = !role.includes('become');
+  const isFinderRole = role !== 'companion';
   const [profile, setProfile] = useState(defaultProfile);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [saved, setSaved] = useState(false);
@@ -494,7 +494,7 @@ export default function MyProfilePage() {
                 <div className="mt-3">
                   <button type="button" onClick={useCurrentLocation} disabled={locating} className="inline-flex items-center gap-2 rounded-lg border border-violet-200 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-60"><MapPin className="h-3.5 w-3.5" />{locating ? 'Finding location…' : profile.lat != null && profile.lng != null ? 'Update current location' : 'Use my current location'}</button>
                   {profile.lat != null && profile.lng != null && <span className="ml-2 text-xs font-normal text-[#827b95]">Coordinates ready to save</span>}
-                  <span className="mt-1 block text-xs font-normal text-[#827b95]">Your location helps Find a RentCoPartner users discover nearby providers. Browser permission is required.</span>
+                  <span className="mt-1 block text-xs font-normal text-[#827b95]">Your location helps people looking for a partner discover nearby providers. Browser permission is required.</span>
                 </div>
               </label>
               <label className="block text-sm font-semibold text-[#40394f]">

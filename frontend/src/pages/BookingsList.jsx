@@ -24,9 +24,7 @@ function formatDuration(minutes) {
 
 function getRole(user) {
   const role = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
-  if (role.includes('become')) return 'become';
-  if (role.includes('find')) return 'find';
-  return 'find';
+  return role === 'companion' ? 'companion' : 'finder';
 }
 
 function getDirection(booking, user) {
@@ -94,7 +92,7 @@ export default function BookingsList() {
 
   const signedIn = isAuthenticated();
 
-  const completedFinderBookingIds = role === 'find'
+  const completedFinderBookingIds = role === 'finder'
     ? bookings
       .filter((booking) => bookingStatus(booking) === 'completed' && getDirection(booking, user) === 'outgoing')
       .map((booking) => booking.id)
@@ -154,7 +152,7 @@ export default function BookingsList() {
 
   const roleBookings = useMemo(() => bookings.filter((booking) => {
     const direction = getDirection(booking, user);
-    return role === 'become' ? direction === 'incoming' : direction === 'outgoing';
+    return role === 'companion' ? direction === 'incoming' : direction === 'outgoing';
   }), [bookings, role, user]);
 
   const metrics = useMemo(() => {
@@ -488,7 +486,7 @@ export default function BookingsList() {
               const isIncoming = direction === 'incoming';
               const status = bookingStatus(booking);
               const canRespond = isIncoming && status === 'pending';
-              const canRate = role === 'find' && !isIncoming && status === 'completed';
+              const canRate = role === 'finder' && !isIncoming && status === 'completed';
               const existingRating = ratingStatuses[booking.id] || (booking.rating_submitted || booking.user_rating
                 ? { stars: booking.user_rating || booking.rating, message: booking.user_review || '' }
                 : null);

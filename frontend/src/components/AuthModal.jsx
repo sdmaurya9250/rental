@@ -17,8 +17,8 @@ const GENDER_OPTIONS = [
 ];
 
 const INTENT_OPTIONS = [
-  { value: 'Find a RentPeople', label: 'Find a RentCoPartner', icon: Search },
-  { value: 'Become a RentPeople', label: 'Become a RentCoPartner', icon: UserPlus },
+  { value: 'finder', label: 'Find a Partner', icon: Search },
+  { value: 'companion', label: 'Become a Partner', icon: UserPlus },
 ];
 
 export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'login' }) {
@@ -39,7 +39,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
   const [coordinates, setCoordinates] = useState(null);
   const [pincode, setPincode] = useState('');
   const [gender, setGender] = useState(''); // now holds 'Male' | 'Female' | 'Other'
-  const [accountIntent, setAccountIntent] = useState('Find a RentPeople');
+  const [accountIntent, setAccountIntent] = useState('finder');
   const [detectingLocation, setDetectingLocation] = useState(false);
 
   // OTP flow state
@@ -142,7 +142,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
       setLoading(true);
       // Keys and values here must match RegisterRequest exactly:
       // country, city, pincode, gender ('Male'|'Female'|'Other'),
-      // want_to ('Find a RentPeople'|'Become a RentPeople'),
+      // want_to ('finder'|'companion'),
       // mobile, email, password
       const data = await registerUser({
         country,
@@ -215,8 +215,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
             <X className="w-6 h-6" />
           </button>
 
-          <BrandLogo dark onClick={onClose} className="mb-3" />
-          <h2 className="text-2xl font-bold tracking-tight">{mode === 'register' ? 'Create your account' : 'Welcome back'}</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Welcome to RentCoPartner</h2>
         </div>
 
         {/* Modal Body */}
@@ -437,7 +436,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                     />
 
                     {/* Detect Location */}
-                    {accountIntent === 'Become a RentPeople' && (
+                    {accountIntent === 'companion' && (
                       <button
                         type="button"
                         onClick={detectRegistrationCity}
@@ -462,7 +461,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                       Location detected: {city}
                     </div>
                   )}
-                  {!coordinates && accountIntent === 'Become a RentPeople' && (
+                  {!coordinates && accountIntent === 'companion' && (
                     <p className="px-1 text-[11px] leading-4 text-gray-500">
                       Tap the pin and choose Allow when Chrome asks. If location is blocked, open the site settings beside the address bar, allow Location, then try again.
                     </p>

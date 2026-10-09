@@ -17,7 +17,7 @@ function LandingRoute() {
 function BrowseRoute() {
   const user = getStoredUser();
   const role = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
-  const canBrowse = !role.includes('become');
+  const canBrowse = role !== 'companion';
   return canBrowse ? <Seo title="Browse Companions by Service and City | RentCoPartner" description="Explore RentCoPartner profiles, compare listed social and lifestyle services, and review availability and rates to find a companion for your plans." noIndex><Outlet /></Seo> : <Navigate to="/dashboard" replace />;
 }
 

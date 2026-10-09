@@ -45,7 +45,7 @@ function completionFor(profile, role) {
     Boolean(profile.fullName || profile.full_name || profile.name), Boolean(profile.city),
     Boolean(profile.bio?.trim()), Boolean(getImage(profile)), parseArray(profile.languages).length > 0,
   ];
-  if (role.includes('become')) fields.push(parseArray(profile.services || profile.interests).length > 0, Boolean(profile.availableTime || profile.available_time || profile.availability));
+  if (role === 'companion') fields.push(parseArray(profile.services || profile.interests).length > 0, Boolean(profile.availableTime || profile.available_time || profile.availability));
   return Math.round(fields.filter(Boolean).length / fields.length * 100);
 }
 
