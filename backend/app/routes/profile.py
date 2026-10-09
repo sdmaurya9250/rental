@@ -1,9 +1,163 @@
-# from fastapi import APIRouter, Request, Depends, HTTPException, status
+# # from fastapi import APIRouter, Request, Depends, HTTPException, status
+# # from models.user import ProfileUpdate
+# # from utils.security import decode_access_token
+# # import json
+# #
+# # router = APIRouter()
+# #
+# #
+# # def _parse_json_field(value, default=None):
+# #     if default is None:
+# #         default = []
+# #     if value is None:
+# #         return default
+# #     if isinstance(value, (list, dict)):
+# #         return value
+# #     try:
+# #         return json.loads(value)
+# #     except Exception:
+# #         return default
+# #
+# #
+# # async def get_current_user(request: Request):
+# #     auth_header = request.headers.get("Authorization")
+# #     if not auth_header or not auth_header.startswith("Bearer "):
+# #         raise HTTPException(status_code=401, detail="Not authenticated")
+# #
+# #     token = auth_header.split(" ")[1]
+# #     payload = decode_access_token(token)
+# #     user_id = payload.get("sub")
+# #     if not user_id:
+# #         raise HTTPException(status_code=401, detail="Invalid token")
+# #
+# #     db = request.scope["env"].DB
+# #     user = await db.prepare("SELECT * FROM users WHERE id = ?").bind(user_id).first()
+# #     if not user:
+# #         raise HTTPException(status_code=404, detail="User not found")
+# #
+# #     return dict(user)
+# #
+# #
+# # @router.get("/profile")
+# # async def get_profile(current_user: dict = Depends(get_current_user)):
+# #     return {
+# #         "id": current_user["id"],
+# #         "fullName": current_user.get("full_name") or "",
+# #         "email": current_user["email"],
+# #         "phone": current_user.get("mobile") or "",
+# #         "city": current_user.get("city") or "",
+# #         "gender": current_user.get("gender") or "",
+# #         "price": current_user.get("price") or 1500,
+# #         "bio": current_user.get("bio") or "",
+# #         "image": current_user.get("image") or "",  # R2 URL
+# #         "isAvailable": bool(current_user.get("is_available", 1)),
+# #         "availableTime": current_user.get("available_time") or "",
+# #         "languages": _parse_json_field(current_user.get("languages"), []),
+# #         "interests": _parse_json_field(current_user.get("interests"), []),
+# #         "services": _parse_json_field(current_user.get("services"), []),
+# #         "gallery": _parse_json_field(current_user.get("gallery"), []),  # R2 URLs
+# #         "lat": current_user.get("lat"),
+# #         "lng": current_user.get("lng"),
+# #     }
+# #
+# # @router.patch("/profile")
+# # @router.put("/profile")
+# # async def update_profile(
+# #     data: ProfileUpdate,
+# #     request: Request,
+# #     current_user: dict = Depends(get_current_user),
+# # ):
+# #     db = request.scope["env"].DB
+# #     user_id = current_user["id"]
+# #
+# #     updates = []
+# #     values = []
+# #
+# #     if data.fullName is not None:
+# #         updates.append("full_name = ?")
+# #         values.append(data.fullName)
+# #     if data.phone is not None:
+# #         updates.append("mobile = ?")
+# #         values.append(data.phone)
+# #     if data.city is not None:
+# #         updates.append("city = ?")
+# #         values.append(data.city)
+# #     if data.gender is not None:
+# #         updates.append("gender = ?")
+# #         values.append(data.gender)
+# #     if data.price is not None:
+# #         updates.append("price = ?")
+# #         values.append(data.price)
+# #     if data.bio is not None:
+# #         updates.append("bio = ?")
+# #         values.append(data.bio)
+# #     if data.image is not None:
+# #         updates.append("image = ?")
+# #         values.append(data.image)
+# #     if data.isAvailable is not None:
+# #         updates.append("is_available = ?")
+# #         values.append(1 if data.isAvailable else 0)
+# #     if data.availableTime is not None:
+# #         updates.append("available_time = ?")
+# #         values.append(
+# #             data.availableTime
+# #             if isinstance(data.availableTime, str)
+# #             else json.dumps(data.availableTime)
+# #         )
+# #     if data.languages is not None:
+# #         updates.append("languages = ?")
+# #         values.append(
+# #             data.languages
+# #             if isinstance(data.languages, str)
+# #             else json.dumps(data.languages)
+# #         )
+# #     if data.interests is not None:
+# #         updates.append("interests = ?")
+# #         values.append(
+# #             data.interests
+# #             if isinstance(data.interests, str)
+# #             else json.dumps(data.interests)
+# #         )
+# #     if data.lat is not None:
+# #         updates.append("lat = ?")
+# #         values.append(data.lat)
+# #     if data.lng is not None:
+# #         updates.append("lng = ?")
+# #         values.append(data.lng)
+# #     if data.services is not None:
+# #         updates.append("services = ?")
+# #         serialized = []
+# #         for s in data.services:
+# #             if hasattr(s, "model_dump"):
+# #                 serialized.append(s.model_dump())
+# #             elif isinstance(s, dict):
+# #                 serialized.append(s)
+# #             else:
+# #                 serialized.append({"name": str(s)})
+# #         values.append(json.dumps(serialized))
+# #     if data.gallery is not None:
+# #         updates.append("gallery = ?")
+# #         values.append(json.dumps(data.gallery))
+# #
+# #     if not updates:
+# #         raise HTTPException(status_code=400, detail="No fields to update")
+# #
+# #     values.append(user_id)
+# #     query = f"UPDATE users SET {', '.join(updates)} WHERE id = ?"
+# #     await db.prepare(query).bind(*values).run()
+# #
+# #     return {"message": "Profile updated successfully"}
+#
+#
+# from fastapi import APIRouter, Request, Depends, HTTPException, status, Query
 # from models.user import ProfileUpdate
 # from utils.security import decode_access_token
 # import json
+# import uuid
 #
 # router = APIRouter()
+#
+# R2_PUBLIC_URL = "https://pub-da3163e6bec745449d684b720f3a6b4c.r2.dev"
 #
 #
 # def _parse_json_field(value, default=None):
@@ -17,6 +171,16 @@
 #         return json.loads(value)
 #     except Exception:
 #         return default
+#
+#
+# def _ext_from_content_type(content_type: str) -> str:
+#     if "png" in content_type:
+#         return "png"
+#     if "webp" in content_type:
+#         return "webp"
+#     if "gif" in content_type:
+#         return "gif"
+#     return "jpg"
 #
 #
 # async def get_current_user(request: Request):
@@ -49,16 +213,17 @@
 #         "gender": current_user.get("gender") or "",
 #         "price": current_user.get("price") or 1500,
 #         "bio": current_user.get("bio") or "",
-#         "image": current_user.get("image") or "",  # R2 URL
+#         "image": current_user.get("image") or "",
 #         "isAvailable": bool(current_user.get("is_available", 1)),
 #         "availableTime": current_user.get("available_time") or "",
 #         "languages": _parse_json_field(current_user.get("languages"), []),
 #         "interests": _parse_json_field(current_user.get("interests"), []),
 #         "services": _parse_json_field(current_user.get("services"), []),
-#         "gallery": _parse_json_field(current_user.get("gallery"), []),  # R2 URLs
+#         "gallery": _parse_json_field(current_user.get("gallery"), []),
 #         "lat": current_user.get("lat"),
 #         "lng": current_user.get("lng"),
 #     }
+#
 #
 # @router.patch("/profile")
 # @router.put("/profile")
@@ -67,6 +232,7 @@
 #     request: Request,
 #     current_user: dict = Depends(get_current_user),
 # ):
+#     """Partial update — only fields sent in body are changed (PATCH-safe)."""
 #     db = request.scope["env"].DB
 #     user_id = current_user["id"]
 #
@@ -147,7 +313,163 @@
 #     await db.prepare(query).bind(*values).run()
 #
 #     return {"message": "Profile updated successfully"}
-
+#
+#
+# # @router.post("/profile/photo")
+# # async def upload_profile_photo(
+# #     request: Request,
+# #     current_user: dict = Depends(get_current_user),
+# #     type: str = Query("avatar", pattern="^(avatar|gallery)$"),
+# # ):
+# #     """
+# #     Single photo upload:
+# #       POST /api/profile/photo?type=avatar
+# #       POST /api/profile/photo?type=gallery
+# #     Body = raw image bytes
+# #     """
+# #     content_type = request.headers.get("content-type", "image/jpeg")
+# #     if not content_type.startswith("image/"):
+# #         raise HTTPException(status_code=400, detail="Only image files are allowed")
+# #
+# #     body = await request.body()
+# #     if not body:
+# #         raise HTTPException(status_code=400, detail="No file received")
+# #
+# #     user_id = current_user["id"]
+# #     ext = _ext_from_content_type(content_type)
+# #     images = request.scope["env"].IMAGES
+# #     db = request.scope["env"].DB
+# #
+# #     if type == "avatar":
+# #         key = f"profiles/{user_id}/avatar.{ext}"
+# #         await images.put(key, body, httpMetadata={"contentType": content_type})
+# #         image_url = f"{R2_PUBLIC_URL}/{key}"
+# #
+# #         await db.prepare(
+# #             "UPDATE users SET image = ? WHERE id = ?"
+# #         ).bind(image_url, user_id).run()
+# #
+# #         return {
+# #             "type": "avatar",
+# #             "image": image_url,
+# #             "message": "Avatar uploaded successfully",
+# #         }
+# #
+# #     file_id = str(uuid.uuid4())[:8]
+# #     key = f"profiles/{user_id}/gallery/{file_id}.{ext}"
+# #     await images.put(key, body, httpMetadata={"contentType": content_type})
+# #     image_url = f"{R2_PUBLIC_URL}/{key}"
+# #
+# #     row = await db.prepare(
+# #         "SELECT gallery FROM users WHERE id = ?"
+# #     ).bind(user_id).first()
+# #
+# #     gallery = []
+# #     if row:
+# #         raw = dict(row).get("gallery")
+# #         if raw:
+# #             try:
+# #                 gallery = json.loads(raw) if isinstance(raw, str) else list(raw)
+# #             except Exception:
+# #                 gallery = []
+# #
+# #     if image_url not in gallery:
+# #         gallery.append(image_url)
+# #     gallery = gallery[-6:]
+# #
+# #     await db.prepare(
+# #         "UPDATE users SET gallery = ? WHERE id = ?"
+# #     ).bind(json.dumps(gallery), user_id).run()
+# #
+# #     return {
+# #         "type": "gallery",
+# #         "url": image_url,
+# #         "gallery": gallery,
+# #         "message": "Gallery image uploaded successfully",
+# #     }
+#
+# @router.post("/profile/photo")
+# async def upload_profile_photo(
+#     request: Request,
+#     current_user: dict = Depends(get_current_user),
+#     type: str = Query("avatar", pattern="^(avatar|gallery)$"),
+#     index: int | None = Query(None, ge=0, le=3),  # gallery slot 0–3
+# ):
+#     content_type = request.headers.get("content-type", "image/jpeg")
+#     if not content_type.startswith("image/"):
+#         raise HTTPException(status_code=400, detail="Only image files are allowed")
+#
+#     body = await request.body()
+#     if not body:
+#         raise HTTPException(status_code=400, detail="No file received")
+#
+#     user_id = current_user["id"]
+#     ext = _ext_from_content_type(content_type)
+#     images = request.scope["env"].IMAGES
+#     db = request.scope["env"].DB
+#
+#     # ── Avatar ──
+#     if type == "avatar":
+#         key = f"profiles/{user_id}/avatar.{ext}"
+#         await images.put(key, body, httpMetadata={"contentType": content_type})
+#         image_url = f"{R2_PUBLIC_URL}/{key}"
+#
+#         await db.prepare(
+#             "UPDATE users SET image = ? WHERE id = ?"
+#         ).bind(image_url, user_id).run()
+#
+#         return {
+#             "type": "avatar",
+#             "image": image_url,
+#             "message": "Avatar uploaded successfully",
+#         }
+#
+#     # ── Gallery (max 4) ──
+#     row = await db.prepare(
+#         "SELECT gallery FROM users WHERE id = ?"
+#     ).bind(user_id).first()
+#
+#     gallery = []
+#     if row:
+#         raw = dict(row).get("gallery")
+#         if raw:
+#             try:
+#                 gallery = json.loads(raw) if isinstance(raw, str) else list(raw)
+#             except Exception:
+#                 gallery = []
+#
+#     # Keep only valid URLs, max structure size 4
+#     gallery = [g for g in gallery if g][:4]
+#
+#     file_id = str(uuid.uuid4())[:8]
+#     key = f"profiles/{user_id}/gallery/{file_id}.{ext}"
+#     await images.put(key, body, httpMetadata={"contentType": content_type})
+#     image_url = f"{R2_PUBLIC_URL}/{key}"
+#
+#     if len(gallery) < 4:
+#         # Still free slots → append
+#         gallery.append(image_url)
+#         used_index = len(gallery) - 1
+#     else:
+#         # Full (4) → overwrite by index
+#         used_index = index if index is not None else 0
+#         gallery[used_index] = image_url
+#
+#     # Hard cap 4
+#     gallery = gallery[:4]
+#
+#     await db.prepare(
+#         "UPDATE users SET gallery = ? WHERE id = ?"
+#     ).bind(json.dumps(gallery), user_id).run()
+#
+#     return {
+#         "type": "gallery",
+#         "url": image_url,
+#         "index": used_index,
+#         "gallery": gallery,
+#         "max": 4,
+#         "message": f"Gallery image saved at index {used_index}",
+#     }
 
 from fastapi import APIRouter, Request, Depends, HTTPException, status, Query
 from models.user import ProfileUpdate
@@ -158,6 +480,7 @@ import uuid
 router = APIRouter()
 
 R2_PUBLIC_URL = "https://pub-da3163e6bec745449d684b720f3a6b4c.r2.dev"
+MAX_GALLERY = 4
 
 
 def _parse_json_field(value, default=None):
@@ -174,11 +497,12 @@ def _parse_json_field(value, default=None):
 
 
 def _ext_from_content_type(content_type: str) -> str:
-    if "png" in content_type:
+    ct = (content_type or "").lower()
+    if "png" in ct:
         return "png"
-    if "webp" in content_type:
+    if "webp" in ct:
         return "webp"
-    if "gif" in content_type:
+    if "gif" in ct:
         return "gif"
     return "jpg"
 
@@ -202,26 +526,102 @@ async def get_current_user(request: Request):
     return dict(user)
 
 
+async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
+    """
+    Supports:
+      1) Raw body: Content-Type: image/jpeg
+      2) Multipart: field name file | photo | image | avatar
+    """
+    content_type = (request.headers.get("content-type") or "").lower()
+
+    if "multipart/form-data" in content_type:
+        try:
+            form = await request.form()
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Could not parse multipart form: {e}. "
+                    "Send raw image body with Content-Type: image/jpeg instead."
+                ),
+            )
+
+        file = (
+            form.get("file")
+            or form.get("photo")
+            or form.get("image")
+            or form.get("avatar")
+        )
+        if file is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No file field. Use form field name: file | photo | image",
+            )
+
+        if hasattr(file, "read"):
+            body = await file.read()
+            ct = getattr(file, "content_type", None) or "image/jpeg"
+        elif isinstance(file, (bytes, bytearray)):
+            body = bytes(file)
+            ct = "image/jpeg"
+        else:
+            raise HTTPException(status_code=400, detail="Invalid file field")
+
+        if not body:
+            raise HTTPException(status_code=400, detail="Empty file")
+        if not str(ct).startswith("image/"):
+            ct = "image/jpeg"
+        return body, str(ct)
+
+    if not content_type.startswith("image/") and "octet-stream" not in content_type:
+        if content_type:
+            raise HTTPException(
+                status_code=400,
+                detail="Send image/* or multipart/form-data with field 'file'",
+            )
+
+    body = await request.body()
+    if not body:
+        raise HTTPException(status_code=400, detail="No file received")
+
+    ct = content_type if content_type.startswith("image/") else "image/jpeg"
+    return body, ct
+
+
 @router.get("/profile")
 async def get_profile(current_user: dict = Depends(get_current_user)):
+    services = _parse_json_field(current_user.get("services"), [])
+    gallery = _parse_json_field(current_user.get("gallery"), [])
+    languages = current_user.get("languages") or ""
+    interests = current_user.get("interests") or ""
+
     return {
         "id": current_user["id"],
+        "account_id": current_user["id"],
         "fullName": current_user.get("full_name") or "",
+        "name": current_user.get("full_name") or "",
         "email": current_user["email"],
         "phone": current_user.get("mobile") or "",
+        "mobile": current_user.get("mobile") or "",
         "city": current_user.get("city") or "",
+        "country": current_user.get("country") or "",
         "gender": current_user.get("gender") or "",
+        "want_to": current_user.get("want_to") or "",
+        "role": current_user.get("want_to") or "",
         "price": current_user.get("price") or 1500,
         "bio": current_user.get("bio") or "",
         "image": current_user.get("image") or "",
         "isAvailable": bool(current_user.get("is_available", 1)),
         "availableTime": current_user.get("available_time") or "",
-        "languages": _parse_json_field(current_user.get("languages"), []),
-        "interests": _parse_json_field(current_user.get("interests"), []),
-        "services": _parse_json_field(current_user.get("services"), []),
-        "gallery": _parse_json_field(current_user.get("gallery"), []),
+        "languages": languages,
+        "interests": interests,
+        "services": services,
+        "gallery": gallery,
         "lat": current_user.get("lat"),
         "lng": current_user.get("lng"),
+        "rating_avg": float(current_user.get("rating_avg") or 0),
+        "rating_count": int(current_user.get("rating_count") or 0),
+        "wallet_balance": float(current_user.get("wallet_balance") or 0),
     }
 
 
@@ -232,78 +632,76 @@ async def update_profile(
     request: Request,
     current_user: dict = Depends(get_current_user),
 ):
-    """Partial update — only fields sent in body are changed (PATCH-safe)."""
     db = request.scope["env"].DB
     user_id = current_user["id"]
 
     updates = []
     values = []
 
-    if data.fullName is not None:
+    full_name = data.fullName if data.fullName is not None else data.name
+    if full_name is not None:
         updates.append("full_name = ?")
-        values.append(data.fullName)
+        values.append(full_name)
+
     if data.phone is not None:
         updates.append("mobile = ?")
         values.append(data.phone)
+
     if data.city is not None:
         updates.append("city = ?")
         values.append(data.city)
+
     if data.gender is not None:
         updates.append("gender = ?")
         values.append(data.gender)
+
     if data.price is not None:
         updates.append("price = ?")
         values.append(data.price)
+
     if data.bio is not None:
         updates.append("bio = ?")
         values.append(data.bio)
+
     if data.image is not None:
         updates.append("image = ?")
         values.append(data.image)
+
     if data.isAvailable is not None:
         updates.append("is_available = ?")
         values.append(1 if data.isAvailable else 0)
+
     if data.availableTime is not None:
         updates.append("available_time = ?")
-        values.append(
-            data.availableTime
-            if isinstance(data.availableTime, str)
-            else json.dumps(data.availableTime)
-        )
+        values.append(data.availableTime)
+
     if data.languages is not None:
         updates.append("languages = ?")
-        values.append(
-            data.languages
-            if isinstance(data.languages, str)
-            else json.dumps(data.languages)
-        )
+        values.append(data.languages)
+
     if data.interests is not None:
         updates.append("interests = ?")
-        values.append(
-            data.interests
-            if isinstance(data.interests, str)
-            else json.dumps(data.interests)
-        )
+        values.append(data.interests)
+
     if data.lat is not None:
         updates.append("lat = ?")
         values.append(data.lat)
+
     if data.lng is not None:
         updates.append("lng = ?")
         values.append(data.lng)
+
     if data.services is not None:
         updates.append("services = ?")
-        serialized = []
-        for s in data.services:
-            if hasattr(s, "model_dump"):
-                serialized.append(s.model_dump())
-            elif isinstance(s, dict):
-                serialized.append(s)
-            else:
-                serialized.append({"name": str(s)})
-        values.append(json.dumps(serialized))
+        values.append(
+            json.dumps(
+                [s.model_dump() if hasattr(s, "model_dump") else dict(s) for s in data.services]
+            )
+        )
+
     if data.gallery is not None:
         updates.append("gallery = ?")
-        values.append(json.dumps(data.gallery))
+        values.append(json.dumps(data.gallery[:MAX_GALLERY]))
 
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -315,101 +713,31 @@ async def update_profile(
     return {"message": "Profile updated successfully"}
 
 
-# @router.post("/profile/photo")
-# async def upload_profile_photo(
-#     request: Request,
-#     current_user: dict = Depends(get_current_user),
-#     type: str = Query("avatar", pattern="^(avatar|gallery)$"),
-# ):
-#     """
-#     Single photo upload:
-#       POST /api/profile/photo?type=avatar
-#       POST /api/profile/photo?type=gallery
-#     Body = raw image bytes
-#     """
-#     content_type = request.headers.get("content-type", "image/jpeg")
-#     if not content_type.startswith("image/"):
-#         raise HTTPException(status_code=400, detail="Only image files are allowed")
-#
-#     body = await request.body()
-#     if not body:
-#         raise HTTPException(status_code=400, detail="No file received")
-#
-#     user_id = current_user["id"]
-#     ext = _ext_from_content_type(content_type)
-#     images = request.scope["env"].IMAGES
-#     db = request.scope["env"].DB
-#
-#     if type == "avatar":
-#         key = f"profiles/{user_id}/avatar.{ext}"
-#         await images.put(key, body, httpMetadata={"contentType": content_type})
-#         image_url = f"{R2_PUBLIC_URL}/{key}"
-#
-#         await db.prepare(
-#             "UPDATE users SET image = ? WHERE id = ?"
-#         ).bind(image_url, user_id).run()
-#
-#         return {
-#             "type": "avatar",
-#             "image": image_url,
-#             "message": "Avatar uploaded successfully",
-#         }
-#
-#     file_id = str(uuid.uuid4())[:8]
-#     key = f"profiles/{user_id}/gallery/{file_id}.{ext}"
-#     await images.put(key, body, httpMetadata={"contentType": content_type})
-#     image_url = f"{R2_PUBLIC_URL}/{key}"
-#
-#     row = await db.prepare(
-#         "SELECT gallery FROM users WHERE id = ?"
-#     ).bind(user_id).first()
-#
-#     gallery = []
-#     if row:
-#         raw = dict(row).get("gallery")
-#         if raw:
-#             try:
-#                 gallery = json.loads(raw) if isinstance(raw, str) else list(raw)
-#             except Exception:
-#                 gallery = []
-#
-#     if image_url not in gallery:
-#         gallery.append(image_url)
-#     gallery = gallery[-6:]
-#
-#     await db.prepare(
-#         "UPDATE users SET gallery = ? WHERE id = ?"
-#     ).bind(json.dumps(gallery), user_id).run()
-#
-#     return {
-#         "type": "gallery",
-#         "url": image_url,
-#         "gallery": gallery,
-#         "message": "Gallery image uploaded successfully",
-#     }
-
 @router.post("/profile/photo")
 async def upload_profile_photo(
     request: Request,
     current_user: dict = Depends(get_current_user),
-    type: str = Query("avatar", pattern="^(avatar|gallery)$"),
-    index: int | None = Query(None, ge=0, le=3),  # gallery slot 0–3
+    type: str = Query("avatar", description="avatar | gallery"),
+    index: int = Query(0, ge=0, le=3, description="Gallery slot 0-3 when type=gallery"),
 ):
-    content_type = request.headers.get("content-type", "image/jpeg")
-    if not content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only image files are allowed")
+    """
+    Flutter:
+      - multipart field: file | photo | image
+      - or raw body with Content-Type: image/jpeg
+    Query: ?type=avatar|gallery&index=0
+    Gallery max 4; index overwrites that slot.
+    """
+    photo_type = (type or "avatar").lower().strip()
+    if photo_type not in ("avatar", "gallery"):
+        raise HTTPException(status_code=400, detail="type must be avatar or gallery")
 
-    body = await request.body()
-    if not body:
-        raise HTTPException(status_code=400, detail="No file received")
-
+    body, content_type = await _read_image_bytes(request)
     user_id = current_user["id"]
     ext = _ext_from_content_type(content_type)
     images = request.scope["env"].IMAGES
     db = request.scope["env"].DB
 
-    # ── Avatar ──
-    if type == "avatar":
+    if photo_type == "avatar":
         key = f"profiles/{user_id}/avatar.{ext}"
         await images.put(key, body, httpMetadata={"contentType": content_type})
         image_url = f"{R2_PUBLIC_URL}/{key}"
@@ -419,12 +747,17 @@ async def upload_profile_photo(
         ).bind(image_url, user_id).run()
 
         return {
-            "type": "avatar",
             "image": image_url,
+            "url": image_url,
+            "type": "avatar",
             "message": "Avatar uploaded successfully",
         }
 
-    # ── Gallery (max 4) ──
+    file_id = str(uuid.uuid4())[:8]
+    key = f"profiles/{user_id}/gallery/{file_id}.{ext}"
+    await images.put(key, body, httpMetadata={"contentType": content_type})
+    image_url = f"{R2_PUBLIC_URL}/{key}"
+
     row = await db.prepare(
         "SELECT gallery FROM users WHERE id = ?"
     ).bind(user_id).first()
@@ -438,35 +771,26 @@ async def upload_profile_photo(
             except Exception:
                 gallery = []
 
-    # Keep only valid URLs, max structure size 4
-    gallery = [g for g in gallery if g][:4]
+    if not isinstance(gallery, list):
+        gallery = []
 
-    file_id = str(uuid.uuid4())[:8]
-    key = f"profiles/{user_id}/gallery/{file_id}.{ext}"
-    await images.put(key, body, httpMetadata={"contentType": content_type})
-    image_url = f"{R2_PUBLIC_URL}/{key}"
+    # Pad to 4 slots for index overwrite
+    while len(gallery) < MAX_GALLERY:
+        gallery.append("")
 
-    if len(gallery) < 4:
-        # Still free slots → append
-        gallery.append(image_url)
-        used_index = len(gallery) - 1
-    else:
-        # Full (4) → overwrite by index
-        used_index = index if index is not None else 0
-        gallery[used_index] = image_url
-
-    # Hard cap 4
-    gallery = gallery[:4]
+    used_index = min(int(index), MAX_GALLERY - 1)
+    gallery[used_index] = image_url
+    gallery = [g for g in gallery if g][:MAX_GALLERY]
 
     await db.prepare(
         "UPDATE users SET gallery = ? WHERE id = ?"
     ).bind(json.dumps(gallery), user_id).run()
 
     return {
-        "type": "gallery",
         "url": image_url,
-        "index": used_index,
+        "image": image_url,
         "gallery": gallery,
-        "max": 4,
-        "message": f"Gallery image saved at index {used_index}",
+        "index": used_index,
+        "type": "gallery",
+        "message": "Gallery image uploaded successfully",
     }
