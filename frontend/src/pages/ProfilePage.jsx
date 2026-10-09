@@ -18,7 +18,7 @@ import {
 import { Link, useParams } from 'react-router-dom';
 import FeaturePage from '../components/FeaturePage';
 import { getStoredUser, isAuthenticated } from '../auth/auth';
-import { createBookingRecord, formatPersonPrice as formatPrice, fetchPersonById, getPersonPrice } from './finderApi';
+import { addFavoriteRecord, checkFavoriteRecord, createBookingRecord, fetchPersonRatings, formatPersonPrice as formatPrice, fetchPersonById, getPersonPrice, removeFavoriteRecord } from './finderApi';
 
 function localDate() {
   const now = new Date();
@@ -126,6 +126,36 @@ function ProfileDetails({ person }) {
   const [bookingError, setBookingError] = useState('');
   const [createdBooking, setCreatedBooking] = useState(null);
   const [showBookingForm, setShowBookingForm] = useState(false);
+  const [ratingSummary, setRatingSummary] = useState(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [favoriteError, setFavoriteError] = useState('');
+  const viewerId = signedInUser.id || signedInUser.user_id || signedInUser.userId;
+  const canFavorite = isAuthenticated() && !isBecomeOnly && String(viewerId || '') !== String(person.id);
+
+  useEffect(() => {
+    let active = true;
+    setRatingSummary(null);
+    fetchPersonRatings(person.id)
+      .then((result) => { if (active) setRatingSummary(result); })
+      .catch(() => { if (active) setRatingSummary({ rating_count: person.rating_count || person.ratingCount || person.reviewsCount || 0, rating_avg: person.rating_avg || person.rating || 0 }); });
+    return () => { active = false; };
+  }, [person.id, person.rating_count, person.ratingCount, person.reviewsCount, person.rating_avg, person.rating]);
+
+  const reviewCount = Number(ratingSummary?.rating_count ?? person.rating_count ?? person.ratingCount ?? person.reviewsCount ?? 0);
+  const averageRating = Number(ratingSummary?.rating_avg ?? person.rating_avg ?? person.rating ?? 0);
+
+  useEffect(() => {
+    setIsFavorite(false);
+    if (!canFavorite || !person.id) return undefined;
+    let active = true;
+    setFavoriteLoading(true);
+    checkFavoriteRecord(person.id)
+      .then((result) => { if (active) setIsFavorite(Boolean(result?.is_favorite)); })
+      .catch(() => {})
+      .finally(() => { if (active) setFavoriteLoading(false); });
+    return () => { active = false; };
+  }, [canFavorite, person.id]);
 
   const selectedService = services.find((service) => service.id === selectedServiceId) || services[0];
   const durationMinutes = durationHoursSelected * 60;
@@ -146,6 +176,25 @@ function ProfileDetails({ person }) {
   const handleNextImage = () => {
     setActiveImageIndex((prev) => (prev === galleryImages.length - 1 ? 0 : prev + 1));
   };
+
+  async function toggleFavorite() {
+    if (!canFavorite || favoriteLoading) return;
+    setFavoriteLoading(true);
+    setFavoriteError('');
+    try {
+      if (isFavorite) {
+        await removeFavoriteRecord(person.id);
+        setIsFavorite(false);
+      } else {
+        await addFavoriteRecord(person.id);
+        setIsFavorite(true);
+      }
+    } catch (error) {
+      setFavoriteError(error.message || 'Unable to update favorites.');
+    } finally {
+      setFavoriteLoading(false);
+    }
+  }
 
   async function submitBooking(event) {
     event.preventDefault();
@@ -217,9 +266,9 @@ function ProfileDetails({ person }) {
                 </span>
               )}
 
-              <button className="absolute top-3 right-3 p-2 rounded-full bg-white/80 text-gray-700 hover:text-rose-500 hover:bg-white transition shadow-sm">
-                <Heart className="w-4 h-4 fill-current" />
-              </button>
+              {canFavorite && <button type="button" onClick={toggleFavorite} disabled={favoriteLoading} aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={isFavorite} className="absolute top-3 right-3 p-2 rounded-full bg-white/80 text-gray-700 hover:text-rose-500 hover:bg-white transition shadow-sm disabled:opacity-60">
+                <Heart className={`w-4 h-4 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`} />
+              </button>}
 
               <button onClick={handlePrevImage} className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/60 transition">
                 <ChevronLeft className="w-5 h-5" />
@@ -254,9 +303,9 @@ function ProfileDetails({ person }) {
             <div className="bg-white rounded-2xl p-4 shadow-sm border border-purple-50 grid grid-cols-3 gap-2 text-center">
               <div>
                 <div className="flex items-center justify-center gap-1 text-amber-500 font-bold text-sm">
-                  <Star className="w-4 h-4 fill-amber-400" /> {person.rating || '4.8'}
+                  <Star className="w-4 h-4 fill-amber-400" /> {reviewCount ? averageRating.toFixed(1) : 'New'}
                 </div>
-                <p className="text-[10px] text-gray-500 mt-0.5">({person.reviewsCount || 120} reviews)</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{reviewCount ? `(${reviewCount} reviews)` : 'No reviews yet'}</p>
               </div>
               <div className="border-x border-gray-100">
                 <div className="flex items-center justify-center gap-1 text-purple-600 font-bold text-sm">
@@ -277,9 +326,10 @@ function ProfileDetails({ person }) {
               {/* <button className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium text-sm rounded-xl shadow-md shadow-purple-200 transition flex items-center justify-center gap-2">
                 <MessageSquare className="w-4 h-4" /> Send Message
               </button> */}
-              <button className="w-full py-2.5 border border-purple-200 text-purple-700 hover:bg-purple-50 font-medium text-sm rounded-xl transition flex items-center justify-center gap-2">
-                <Heart className="w-4 h-4" /> Add to Favorites
-              </button>
+              {canFavorite && <button type="button" onClick={toggleFavorite} disabled={favoriteLoading} aria-pressed={isFavorite} className="w-full py-2.5 border border-purple-200 text-purple-700 hover:bg-purple-50 font-medium text-sm rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-60">
+                <Heart className={`w-4 h-4 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`} /> {favoriteLoading ? 'Updating…' : isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+              </button>}
+              {favoriteError && <p role="alert" className="text-xs text-rose-600">{favoriteError}</p>}
             </div>
           </div>
 
@@ -389,14 +439,14 @@ function ProfileDetails({ person }) {
             </div>
 
             {/* Reviews Breakdown Card */}
-            <div className="bg-white rounded-2xl p-4 shadow-sm border border-purple-50 space-y-4">
+            {reviewCount > 0 && <div className="bg-white rounded-2xl p-4 shadow-sm border border-purple-50 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-gray-900">Reviews ({person.reviewsCount || 120})</h3>
+                <h3 className="text-sm font-bold text-gray-900">Reviews ({reviewCount})</h3>
                 <Link to="#reviews" className="text-xs text-purple-600 font-semibold hover:underline">View all →</Link>
               </div>
 
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black text-gray-900">{person.rating || '4.8'}</span>
+                <span className="text-2xl font-black text-gray-900">{averageRating.toFixed(1)}</span>
                 <span className="text-xs text-gray-400">/5</span>
                 <div className="flex text-amber-400 text-xs ml-1">
                   {'★'.repeat(5)}
@@ -421,7 +471,7 @@ function ProfileDetails({ person }) {
                   </div>
                 ))}
               </div>
-            </div>
+            </div>}
           </div>
         </div>
 

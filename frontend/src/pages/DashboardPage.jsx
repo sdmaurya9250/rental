@@ -3,7 +3,7 @@ import { ArrowRight, CalendarDays, Camera, Coffee, Dumbbell, Heart, MapPin, Mess
 import { Link, useNavigate } from 'react-router-dom';
 import FeaturePage from '../components/FeaturePage';
 import { fetchBookingRecords, fetchConversations, fetchPeople, formatPersonPrice, getLocationPreference, getPersonPrice } from './finderApi';
-import { getMyProfile, getStoredUser } from '../auth/auth';
+import { getStoredUser } from '../auth/auth';
 
 const shortcuts = [
   { name: 'Coffee Partner', icon: Coffee, to: '/browse', tone: 'text-fuchsia-600 bg-fuchsia-50' },
@@ -158,6 +158,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let active = true;
+    const refreshStoredProfile = () => setProfile(getStoredUser() || {});
+    window.addEventListener('rp-profile-updated', refreshStoredProfile);
     const location = getLocationPreference();
     const locationQuery = location?.mode === 'near' && location.lat != null && location.lng != null
       ? {
@@ -169,10 +171,12 @@ export default function DashboardPage() {
         }
       : location?.city ? { city: location.city } : {};
     fetchPeople(locationQuery).then((items) => { if (active) setPeople(items); }).catch((error) => { if (active) setLoadError(error.message || 'Unable to load people.'); }).finally(() => { if (active) setLoadingPeople(false); });
-    getMyProfile().then((result) => { if (active) setProfile({ ...storedUser, ...(result?.profile || result || {}) }); }).catch(() => {});
     fetchBookingRecords().then((result) => { if (active) setBookings(getList(result, 'bookings')); }).catch(() => {});
     fetchConversations().then((result) => { if (active) setConversations(getList(result, 'conversations')); }).catch(() => {});
-    return () => { active = false; };
+    return () => {
+      active = false;
+      window.removeEventListener('rp-profile-updated', refreshStoredProfile);
+    };
   }, []);
 
   const role = String(profile.want_to || profile.wantTo || profile.accountIntent || storedUser.want_to || '').toLowerCase();

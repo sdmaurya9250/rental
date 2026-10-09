@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { getStoredUser, getToken, isAuthenticated } from '../auth/auth';
 import { formatPrice } from '../data/people';
 import AppointmentDetails from '../components/AppointmentDetails';
-import { approveBookingRecord, fetchBookingRecords, rejectBookingRecord } from './finderApi';
+import { approveBookingRecord, cancelBookingRecord, fetchBookingRecords, rejectBookingRecord } from './finderApi';
 
 const tabs = ['All Bookings', 'Upcoming', 'Completed', 'Cancelled'];
 
@@ -78,6 +78,7 @@ export default function BookingsList() {
   const [rejectingBooking, setRejectingBooking] = useState(null);
   const [rejectionMessage, setRejectionMessage] = useState('');
   const [approvingBooking, setApprovingBooking] = useState(null);
+  const [cancellingBooking, setCancellingBooking] = useState(null);
   const [submittingRejection, setSubmittingRejection] = useState(null);
   const [actionError, setActionError] = useState('');
   const [ratingBooking, setRatingBooking] = useState(null);
@@ -230,6 +231,24 @@ export default function BookingsList() {
     }
   }
 
+  async function cancelBookingRequest(booking) {
+    setCancellingBooking(booking.id);
+    setActionError('');
+    try {
+      const result = await cancelBookingRecord(booking.id);
+      const cancelledBooking = result?.booking || result;
+      updateBooking(booking.id, {
+        ...(cancelledBooking && typeof cancelledBooking === 'object' ? cancelledBooking : {}),
+        booking_status: cancelledBooking?.booking_status || cancelledBooking?.status || 'cancelled',
+        cancellation_message: cancelledBooking?.cancellation_message || 'Cancelled by user',
+      });
+    } catch (requestError) {
+      setActionError(requestError.message || 'Unable to cancel this booking.');
+    } finally {
+      setCancellingBooking(null);
+    }
+  }
+
   async function submitBookingRating(event) {
     event.preventDefault();
     if (!ratingBooking || ratingValue < 1) {
@@ -313,10 +332,10 @@ export default function BookingsList() {
       <div className="mx-auto max-w-6xl space-y-6">
         
         {/* Header */}
-        <div>
+        {/* <div>
           <h1 className="text-2xl font-bold tracking-tight text-[#111827]">My Bookings</h1>
           <p className="mt-0.5 text-sm text-[#6b7280]">Track and manage all your appointments and booking requests.</p>
-        </div>
+        </div> */}
 
 {/* Top Summary Metrics */}
 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
@@ -626,13 +645,14 @@ export default function BookingsList() {
                           </>
                         )}
 
-                        {!canRespond && status !== 'completed' && (
+                        {!canRespond && !['completed', 'cancelled', 'rejected'].includes(status) && (
                           <button
                             type="button"
-                            onClick={() => { setRejectingBooking(booking.id); setRejectionMessage(''); }}
-                            className="rounded-xl border border-rose-200 px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                            onClick={() => cancelBookingRequest(booking)}
+                            disabled={cancellingBooking === booking.id}
+                            className="rounded-xl border border-rose-200 px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
                           >
-                            Cancel
+                            {cancellingBooking === booking.id ? 'Cancelling…' : 'Cancel'}
                           </button>
                         )}
 
@@ -665,7 +685,7 @@ export default function BookingsList() {
                         <svg className="h-4 w-4 shrink-0 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                         <div>
                           <span className="font-bold">Booking cancelled</span>
-                          <span className="ml-1 text-rose-700">— {booking.rejection_message ? `Reason: ${booking.rejection_message}` : 'This booking was cancelled.'}</span>
+                          <span className="ml-1 text-rose-700">— {booking.cancellation_message || (booking.rejection_message ? `Reason: ${booking.rejection_message}` : 'This booking was cancelled.')}</span>
                         </div>
                       </div>
                     )}

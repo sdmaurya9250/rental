@@ -201,8 +201,26 @@ export async function checkPhoneAvailable(phone) {
 // ---------- Profile & bookings (bearer token required) ----------
 
 // The backend uses the bearer token to identify the logged-in user's profile.
+let profileRequest = null;
+
 export function getMyProfile() {
-  return request('/api/profile', { auth: true });
+  if (profileRequest) return profileRequest;
+
+  profileRequest = request('/api/profile', { auth: true })
+    .then((result) => {
+      const profile = result?.profile || result;
+      if (profile && typeof profile === 'object') {
+        const updatedUser = { ...(getStoredUser() || {}), ...profile };
+        localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event('rp-profile-updated'));
+      }
+      return result;
+    })
+    .finally(() => {
+      profileRequest = null;
+    });
+
+  return profileRequest;
 }
 
 // Profile save uses POST with the bearer token.
@@ -269,6 +287,29 @@ export function rejectBooking(bookingId, rejectionMessage = '') {
     body: rejectionMessage ? { rejection_message: rejectionMessage } : {},
     auth: true,
   });
+}
+
+export function cancelBooking(bookingId) {
+  return request(`/api/bookings/${encodeURIComponent(bookingId)}/cancel`, {
+    method: 'POST',
+    auth: true,
+  });
+}
+
+export function getFavoritePeople() {
+  return request('/api/favorites', { auth: true });
+}
+
+export function checkFavorite(favoriteUserId) {
+  return request(`/api/favorites/check/${encodeURIComponent(favoriteUserId)}`, { auth: true });
+}
+
+export function addFavorite(favoriteUserId) {
+  return request(`/api/favorites/${encodeURIComponent(favoriteUserId)}`, { method: 'POST', auth: true });
+}
+
+export function removeFavorite(favoriteUserId) {
+  return request(`/api/favorites/${encodeURIComponent(favoriteUserId)}`, { method: 'DELETE', auth: true });
 }
 
 export function getConversations() {

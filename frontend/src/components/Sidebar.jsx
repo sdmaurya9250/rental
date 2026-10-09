@@ -9,7 +9,7 @@ import {
   Briefcase,
   Camera,
   Gamepad2,
-  MoreHorizontal, X, UserPlus, LogOut
+  MoreHorizontal, X, LogOut
 } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { getStoredUser, logout } from '../auth/auth';
@@ -43,7 +43,6 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
   const role = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
   const isBecomeRole = role === 'companion';
   const roleCategories = [
-    { to: '/my-profile', label: 'Become', icon: UserPlus },
     { to: '/bookings', label: 'My bookings', icon: CalendarDays },
     { to: '/messages', label: 'Messages', icon: MessageCircle },
     { to: '/wallet', label: 'Wallet', icon: Wallet },

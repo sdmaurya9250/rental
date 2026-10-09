@@ -429,7 +429,7 @@ export default function MyProfilePage() {
   const availableCityOptions = [...new Set([...cityOptions, profile.city].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
   return (
-    <FeaturePage title="My profile" subtitle="Keep your details, profile image, and pricing up to date.">
+    <FeaturePage  subtitle="Keep your details, profile image, and pricing up to date.">
       {(loadingProfile || completion < 100) && <section className="mb-6 max-w-5xl rounded-2xl border border-violet-100 bg-white p-5 shadow-sm" aria-label="Profile completion">
         <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-[#171426]">Profile completion</h2><p className="mt-1 text-sm text-[#706a80]">A complete profile helps people get to know you.</p></div><span className="text-lg font-bold text-violet-700">{loadingProfile ? '…' : `${completion}%`}</span></div>
         <div className="mt-4 h-3 overflow-hidden rounded-full bg-violet-100" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={completion}><div className="h-full rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 transition-all" style={{ width: `${completion}%` }} /></div>
