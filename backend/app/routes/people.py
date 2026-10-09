@@ -387,7 +387,7 @@ async def people_feed(data: FeedRequest, request: Request):
                services, interests, want_to, languages, available_time, gallery,
                lat, lng
         FROM users
-        WHERE want_to IN ('Become a RentPeople', 'Both')
+        WHERE want_to IN ('companion', 'Both')
           AND lat IS NOT NULL
           AND lng IS NOT NULL
     """
@@ -474,7 +474,7 @@ async def browse_people(
                services, interests, want_to, languages, available_time, gallery,
                lat, lng
         FROM users
-        WHERE want_to IN ('Become a RentPeople', 'Both')
+        WHERE want_to IN ('companion', 'Both')
     """
     params = []
 
