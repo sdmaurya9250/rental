@@ -17,6 +17,7 @@ from routes.kyc import router as kyc_router
 from routes.payout import router as payout_router
 from routes.payment_methods import router as payment_methods_router
 from routes.notifications import router as notifications_router
+from routes.companion_services import router as companion_services_router
 
 app = FastAPI(title="RentPeople API", version="1.0.0")
 
@@ -43,6 +44,7 @@ app.include_router(kyc_router, prefix="/api", tags=["KYC"])
 app.include_router(payout_router, prefix="/api", tags=["Payout"])
 app.include_router(payment_methods_router, prefix="/api", tags=["PaymentMethods"])
 app.include_router(notifications_router, prefix="/api", tags=["Notifications"])
+app.include_router(companion_services_router, prefix="/api", tags=["CompanionServices"])
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request):

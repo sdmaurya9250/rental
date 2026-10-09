@@ -282,3 +282,14 @@ class PayoutMethodCreate(BaseModel):
     ifsc: Optional[str] = None
     bank_name: Optional[str] = None
     is_default: Optional[bool] = False
+
+class CompanionServiceItem(BaseModel):
+    id: Optional[str] = None
+    name: str = Field(..., min_length=1, max_length=100)
+    price: int = Field(..., ge=0)
+    duration: Optional[str] = "1 hr"
+    title: Optional[str] = None  # alias for name
+
+
+class CompanionServicesReplace(BaseModel):
+    services: List[CompanionServiceItem]
