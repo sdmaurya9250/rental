@@ -125,7 +125,7 @@ class RegisterRequest(BaseModel):
     city: str
     pincode: str = Field(..., min_length=6, max_length=6)
     gender: Literal["Male", "Female", "Other"]
-    want_to: Literal["Find a RentPeople", "Become a RentPeople", "Both"]
+    want_to: Literal["finder", "companion"]
     mobile: str = Field(..., min_length=10, max_length=10)
     email: str
     password: str = Field(..., min_length=6)
