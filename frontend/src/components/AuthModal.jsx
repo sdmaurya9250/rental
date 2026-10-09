@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Phone, Mail, Lock, Eye, EyeOff, MapPin, Hash, Search, UserPlus, Users, Loader2 } from 'lucide-react';
+import { X, Phone, Mail, Lock, Eye, EyeOff, MapPin, Hash, Search, UserPlus, Loader2 } from 'lucide-react';
 import {
   sendLoginOtp,
   verifyLoginOtp,
@@ -19,7 +19,6 @@ const GENDER_OPTIONS = [
 const INTENT_OPTIONS = [
   { value: 'Find a RentPeople', label: 'Find a RentCoPartner', icon: Search },
   { value: 'Become a RentPeople', label: 'Become a RentCoPartner', icon: UserPlus },
-  { value: 'Both', label: 'Both', icon: Users },
 ];
 
 export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'login' }) {
@@ -143,7 +142,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
       setLoading(true);
       // Keys and values here must match RegisterRequest exactly:
       // country, city, pincode, gender ('Male'|'Female'|'Other'),
-      // want_to ('Find a RentPeople'|'Become a RentPeople'|'Both'),
+      // want_to ('Find a RentPeople'|'Become a RentPeople'),
       // mobile, email, password
       const data = await registerUser({
         country,
@@ -216,7 +215,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
             <X className="w-6 h-6" />
           </button>
 
-          <BrandLogo dark compact onClick={onClose} className="mb-3" />
+          <BrandLogo dark onClick={onClose} className="mb-3" />
           <h2 className="text-2xl font-bold tracking-tight">{mode === 'register' ? 'Create your account' : 'Welcome back'}</h2>
         </div>
 
@@ -395,7 +394,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
 
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-700">I want to <span className="text-red-500">*</span></label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {INTENT_OPTIONS.map((option) => {
                     const Icon = option.icon;
                     const selected = accountIntent === option.value;
@@ -438,8 +437,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                     />
 
                     {/* Detect Location */}
-                    {(accountIntent === 'Become a RentPeople' ||
-                      accountIntent === 'Both') && (
+                    {accountIntent === 'Become a RentPeople' && (
                       <button
                         type="button"
                         onClick={detectRegistrationCity}
@@ -464,7 +462,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                       Location detected: {city}
                     </div>
                   )}
-                  {!coordinates && (accountIntent === 'Become a RentPeople' || accountIntent === 'Both') && (
+                  {!coordinates && accountIntent === 'Become a RentPeople' && (
                     <p className="px-1 text-[11px] leading-4 text-gray-500">
                       Tap the pin and choose Allow when Chrome asks. If location is blocked, open the site settings beside the address bar, allow Location, then try again.
                     </p>

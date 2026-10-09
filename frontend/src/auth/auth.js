@@ -163,7 +163,7 @@ export async function logout() {
  * @param {string} payload.city
  * @param {string} payload.pincode
  * @param {string} payload.gender
- * @param {string} payload.accountIntent  'find' | 'become' | 'both'
+ * @param {string} payload.accountIntent  'find' | 'become'
  * @param {string} payload.phone
  * @param {string} payload.email
  * @param {string} payload.password

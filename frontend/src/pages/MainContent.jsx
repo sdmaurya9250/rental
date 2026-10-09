@@ -108,6 +108,9 @@ export default function MainContent() {
                 <img
                   src={person.image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop'}
                   alt={person.name}
+                  width="600"
+                  height="450"
+                  loading="lazy"
                   className="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300"
                 />
                 

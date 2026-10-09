@@ -209,7 +209,7 @@ function ProfileDetails({ person }) {
           <div className="lg:col-span-3 space-y-4">
             {/* Image Carousel Card */}
             <div className="relative rounded-2xl overflow-hidden bg-black aspect-square group shadow-sm">
-              <img src={activeImage} alt={person.name} className="w-full h-full object-cover" />
+              <img src={activeImage} alt={`${person.name} profile photo`} width="600" height="600" loading="lazy" className="w-full h-full object-cover" />
               
               {person.isOnline !== false && (
                 <span className="absolute top-3 left-3 bg-emerald-500/90 text-white text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1 backdrop-blur-sm">
@@ -240,7 +240,7 @@ function ProfileDetails({ person }) {
                     activeImageIndex === idx ? 'border-purple-600' : 'border-transparent opacity-70 hover:opacity-100'
                   }`}
                 >
-                  <img src={img} alt="" className="w-full h-full object-cover" />
+                  <img src={img} alt={`${person.name} photo ${idx + 1}`} width="120" height="120" loading="lazy" className="w-full h-full object-cover" />
                   {idx === 4 && galleryImages.length > 5 && (
                     <div className="absolute inset-0 bg-black/60 text-white text-xs font-bold flex items-center justify-center">
                       +{galleryImages.length - 4}
@@ -557,7 +557,7 @@ function ProfileDetails({ person }) {
                 <p className="text-[10px] text-gray-400">Payment remains pending; this form does not charge a payment method.</p>
               </div>
 
-              {!isAuthenticated() && <p className="text-xs text-amber-700">Please <Link className="font-semibold underline" to="/login">sign in</Link> to submit a booking.</p>}
+              {!isAuthenticated() && <p className="text-xs text-amber-700">Please <Link className="font-semibold underline" to="/?auth=login">sign in</Link> to submit a booking.</p>}
               {bookingError && <p role="alert" className="text-xs text-red-600">{bookingError}</p>}
               {createdBooking && <div role="status" className="rounded-xl bg-emerald-50 p-2.5 text-xs text-emerald-800">Booking request saved. Reference: <strong>{createdBooking.id}</strong><Link to="/bookings" className="mt-1 block font-semibold underline">View my bookings</Link></div>}
               

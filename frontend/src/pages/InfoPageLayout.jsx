@@ -8,6 +8,7 @@ const PAGE_LINKS = [
   ['/terms-and-conditions', 'Terms & Conditions'],
   ['/refund-policy', 'Refund Policy'],
   ['/help', 'Help'],
+  ['/contact', 'Contact Us'],
 ];
 
 export default function InfoPageLayout({ title, description, icon: Icon, children }) {

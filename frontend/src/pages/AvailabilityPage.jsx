@@ -271,7 +271,7 @@ export default function AvailabilityPage() {
           {/* Person Profile Snippet */}
           <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
             <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-gray-100">
-              <img src={person.image} alt={person.name} className="h-full w-full object-cover" />
+              <img src={person.image} alt={`${person.name} profile`} width="320" height="320" loading="lazy" className="h-full w-full object-cover" />
               <span className="absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white"></span>
             </div>
             <div>

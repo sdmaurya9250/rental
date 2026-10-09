@@ -168,7 +168,7 @@ export default function MyProfilePage() {
   const [cameraError, setCameraError] = useState('');
   const user = getStoredUser() || {};
   const role = String(user.want_to || user.wantTo || user.accountIntent || '').trim().toLowerCase();
-  const isFinderRole = role === 'find' || role.includes('find a rentpeople');
+  const isFinderRole = !role.includes('become');
   const [profile, setProfile] = useState(defaultProfile);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [saved, setSaved] = useState(false);
@@ -222,7 +222,7 @@ export default function MyProfilePage() {
   // The profile endpoint identifies the account from the saved bearer token.
   useEffect(() => {
     if (!isAuthenticated()) {
-      navigate('/login', { replace: true });
+      navigate('/?auth=login', { replace: true });
       return;
     }
     let active = true;
@@ -438,7 +438,7 @@ export default function MyProfilePage() {
       <div className="grid max-w-5xl gap-6 lg:grid-cols-[260px_1fr]">
         <aside className="h-fit rounded-2xl border border-[#e7e1f2] bg-white p-5 text-center shadow-sm">
           {errorMsg && <p role="alert" className="mb-3 text-xs text-red-600">{errorMsg}</p>}
-          {profile.image ? <img src={profile.image} alt="Your profile" className="mx-auto h-36 w-36 rounded-full object-cover ring-4 ring-violet-100" /> : <div className="mx-auto grid h-36 w-36 place-items-center rounded-full bg-violet-100 text-3xl font-bold text-violet-500">{profile.fullName?.charAt(0)?.toUpperCase() || '?'}</div>}
+          {profile.image ? <img src={profile.image} alt="Your profile" width="144" height="144" loading="lazy" className="mx-auto h-36 w-36 rounded-full object-cover ring-4 ring-violet-100" /> : <div className="mx-auto grid h-36 w-36 place-items-center rounded-full bg-violet-100 text-3xl font-bold text-violet-500">{profile.fullName?.charAt(0)?.toUpperCase() || '?'}</div>}
           <label className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-violet-200 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50">
             <Camera className="h-4 w-4" />
             {uploadingAvatar ? 'Uploading…' : 'Upload image'}
@@ -682,7 +682,7 @@ export default function MyProfilePage() {
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
               {profile.gallery.map((src, index) => (
                 <div key={index} className="group relative aspect-square overflow-hidden rounded-lg border border-[#e4dff0]">
-                  <img src={src} alt={`Photo ${index + 1}`} className="h-full w-full object-cover" />
+                  <img src={src} alt={`Profile photo ${index + 1}`} width="240" height="240" loading="lazy" className="h-full w-full object-cover" />
                   <button
                     type="button"
                     onClick={() => removeGalleryImage(index)}

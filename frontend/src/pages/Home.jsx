@@ -6,10 +6,12 @@ import {
   Home as HomeIcon, Plane, Theater, Dumbbell, Music, Coffee, Utensils,
   MoreHorizontal, Clock, Lock, CheckCircle2, Heart, ChevronRight, Camera, Video
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import HomeHeader from '../components/HomeHeader';
 import HomeFooter from '../components/HomeFooter';
 import AuthModal from '../components/AuthModal';
+import Seo from '../components/Seo';
+import { Head } from 'vite-react-ssg';
 
 /* ---------- Shared layout tokens (change here to affect every section) ---------- */
 // Same left/right spacing for every section
@@ -37,8 +39,16 @@ function SectionHeading({ eyebrow, title, subtitle, className = '' }) {
 }
 
 export default function Home() {
-  const [showBookLogin, setShowBookLogin] = useState(false);
+  const [searchParams] = useSearchParams();
+  const requestedAuth = searchParams.get('auth');
+  const requestedAuthMode = requestedAuth === 'register' ? 'register' : 'login';
+  const [showBookLogin, setShowBookLogin] = useState(requestedAuth === 'login' || requestedAuth === 'register');
+  const [authMode, setAuthMode] = useState(requestedAuthMode);
   const navigate = useNavigate();
+  const openAuth = (mode = 'login') => {
+    setAuthMode(mode);
+    setShowBookLogin(true);
+  };
   const scrollToServices = () => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const quickServices = [
     { icon: <Coffee className="w-5 h-5 text-pink-500" />, label: 'Coffee Partner', bg: 'bg-pink-50' },
@@ -134,6 +144,17 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#fcfaff] text-[#16132a] font-sans flex flex-col selection:bg-violet-100 selection:text-violet-900 overflow-x-hidden relative">
+      <Seo title="Find a Companion for Social Plans | RentCoPartner" description="Find and book companions for dining, movies, travel, events and other social plans. Explore profiles, listed services, availability and rates on RentCoPartner." />
+      <Head>
+        <script type="application/ld+json">{JSON.stringify({
+          '@context': 'https://schema.org',
+          '@graph': [
+            { '@type': 'Organization', name: 'RentCoPartner', url: 'https://rentcopartner.com', logo: 'https://rentcopartner.com/favicon.png' },
+            { '@type': 'WebSite', name: 'RentCoPartner', url: 'https://rentcopartner.com', description: 'A platform to discover and book companions for social and lifestyle activities.' },
+            { '@type': 'FAQPage', mainEntity: faqs.map(({ question, answer }) => ({ '@type': 'Question', name: question, acceptedAnswer: { '@type': 'Answer', text: typeof answer === 'string' ? answer : 'Review the RentCoPartner Refund Policy and Help page for guidance on bookings, cancellations and payment questions.' } })) },
+          ],
+        })}</script>
+      </Head>
 
       {/* Soft Glow Backgrounds */}
       <div className="absolute top-[-5%] left-[-5%] w-[500px] h-[500px] bg-pink-100/40 rounded-full blur-3xl pointer-events-none" />
@@ -164,7 +185,7 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-2 pt-1 sm:flex sm:flex-wrap sm:items-center sm:gap-4">
               <button
                 type="button"
-                onClick={() => setShowBookLogin(true)}
+                onClick={() => openAuth('login')}
                 className="inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-full bg-gradient-to-r from-[#8a1cf7] to-[#c800d8] px-2 py-3 text-[10px] font-semibold text-white shadow-lg shadow-violet-400/25 transition-all duration-200 group hover:opacity-95 sm:px-7 sm:py-3.5 sm:text-sm"
               >
                 Find a Companion
@@ -172,7 +193,7 @@ export default function Home() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowBookLogin(true)}
+                onClick={() => openAuth('register')}
                 className="inline-flex min-w-0 items-center justify-center whitespace-nowrap rounded-full border border-gray-200 bg-white px-2 py-3 text-center text-[10px] font-semibold text-gray-800 shadow-sm transition-all duration-200 hover:bg-gray-50 sm:px-7 sm:py-3.5 sm:text-sm"
               >
                 Become a Companion
@@ -200,29 +221,50 @@ export default function Home() {
           <div className="lg:col-span-6 relative flex justify-center lg:justify-end">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[380px] h-[380px] sm:w-[450px] sm:h-[450px] bg-gradient-to-tr from-pink-200/60 to-violet-200/60 rounded-full blur-2xl -z-10" />
 
-            <div className="absolute top-2 left-10 hidden sm:block text-pink-400 text-xs font-handwriting -rotate-12">
-              <span className="text-pink-500 text-lg">✦</span> Good Company Brighter Moments
-            </div>
-            <Heart className="w-6 h-6 text-pink-400 fill-pink-300 absolute top-0 right-1/3 animate-bounce hidden sm:block" />
+            <Heart className="w-6 h-6 text-pink-400 fill-pink-300 absolute top-0 right-1/3 animate-bounce  sm:block" />
 
             <div className="relative rounded-3xl overflow-hidden shadow-2xl max-w-md border-4 border-white">
               <img
                 src="Joyful_South_Asian_Couple_Small.png"
-                alt="Rental Companion Couple"
+                alt="Two people enjoying time together"
+                width="640"
+                height="800"
+                fetchPriority="high"
                 className="w-full h-[400px] sm:h-[460px] object-cover"
               />
             </div>
 
-            <div className="absolute right-[-10px] sm:right-[-20px] top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-xl border border-gray-100 w-44 sm:w-52 space-y-3 z-20">
+           <div className="absolute right-[-10px] sm:right-[-20px] top-[68%] -translate-y-1/2 bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-xl border border-gray-100 w-44 sm:w-52 space-y-3 z-20">
               {[
-                { i: <Clock className="w-4 h-4" />, t: 'Flexible Schedule', c: 'bg-pink-100 text-pink-600' },
-                { i: <Heart className="w-4 h-4" />, t: 'Your Choice', c: 'bg-purple-100 text-purple-600' },
-                { i: <Lock className="w-4 h-4" />, t: 'Safe & Secure', c: 'bg-indigo-100 text-indigo-600' },
-                { i: <CheckCircle2 className="w-4 h-4" />, t: 'Verified Profiles', c: 'bg-emerald-100 text-emerald-600' },
+                {
+                  i: <Clock className="w-4 h-4" />,
+                  t: "Flexible Schedule",
+                  c: "bg-pink-100 text-pink-600",
+                },
+                {
+                  i: <Heart className="w-4 h-4" />,
+                  t: "Your Choice",
+                  c: "bg-purple-100 text-purple-600",
+                },
+                {
+                  i: <Lock className="w-4 h-4" />,
+                  t: "Safe & Secure",
+                  c: "bg-indigo-100 text-indigo-600",
+                },
+                {
+                  i: <CheckCircle2 className="w-4 h-4" />,
+                  t: "Verified Profiles",
+                  c: "bg-emerald-100 text-emerald-600",
+                },
               ].map((f) => (
                 <div key={f.t} className="flex items-center space-x-2.5">
-                  <div className={`p-2 rounded-lg ${f.c}`}>{f.i}</div>
-                  <span className="text-xs font-bold text-gray-800">{f.t}</span>
+                  <div className={`p-2 rounded-lg ${f.c}`}>
+                    {f.i}
+                  </div>
+
+                  <span className="text-xs font-bold text-gray-800">
+                    {f.t}
+                  </span>
                 </div>
               ))}
             </div>
@@ -277,6 +319,9 @@ export default function Home() {
                   <img
                     src={person.image}
                     alt={person.name}
+                    width="400"
+                    height="400"
+                    loading="lazy"
                     className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-300"
                   />
                   <div className="absolute bottom-2 left-2 bg-[#00d084] text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
@@ -310,7 +355,7 @@ export default function Home() {
           <div className="mt-8 flex justify-center">
             <button
               type="button"
-              onClick={() => setShowBookLogin(true)}
+              onClick={() => openAuth('login')}
               className="px-6 py-2.5 rounded-full border border-pink-200 text-pink-600 hover:bg-pink-50 font-semibold text-xs transition-all flex items-center gap-1 shadow-sm"
             >
               View All <ChevronRight className="w-3.5 h-3.5" />
@@ -361,7 +406,7 @@ export default function Home() {
 
                 <button
                   type="button"
-                  onClick={() => setShowBookLogin(true)}
+                  onClick={() => openAuth('login')}
                   className={`mt-3 flex w-full items-center justify-center rounded-lg py-2 text-[10px] font-bold text-white shadow-sm transition-all duration-200 hover:shadow-md active:scale-95 ${btnBg}`}
                 >
                   Book Now
@@ -456,8 +501,11 @@ export default function Home() {
       {showBookLogin && (
         <AuthModal
           isOpen
-          initialMode="login"
-          onClose={() => setShowBookLogin(false)}
+          initialMode={authMode}
+          onClose={() => {
+            setShowBookLogin(false);
+            if (searchParams.has('auth')) navigate('/', { replace: true });
+          }}
           onLogin={(data) => navigate('/dashboard', { replace: true, state: { user: data?.user } })}
         />
       )}

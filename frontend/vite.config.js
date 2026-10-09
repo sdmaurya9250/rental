@@ -8,6 +8,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss()],
+    ssgOptions: {
+      includedRoutes: (paths) => paths.filter((path) => [
+        '/', '/privacy-policy', '/terms-and-conditions', '/refund-policy', '/contact', '/help', '/404',
+      ].includes(path)),
+    },
     server: {
       proxy: {
         '/api': {

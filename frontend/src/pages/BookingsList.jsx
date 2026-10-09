@@ -24,7 +24,6 @@ function formatDuration(minutes) {
 
 function getRole(user) {
   const role = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
-  if (role === 'both') return 'both';
   if (role.includes('become')) return 'become';
   if (role.includes('find')) return 'find';
   return 'find';
@@ -88,8 +87,20 @@ export default function BookingsList() {
   const [ratingMessage, setRatingMessage] = useState('');
   const [ratingError, setRatingError] = useState('');
   const [submittingRating, setSubmittingRating] = useState(false);
+  const [checkingRating, setCheckingRating] = useState(null);
+  const [ratingStatuses, setRatingStatuses] = useState({});
+  const [ratingStatusChecks, setRatingStatusChecks] = useState({});
+  const [publicRatings, setPublicRatings] = useState(null);
 
   const signedIn = isAuthenticated();
+
+  const completedFinderBookingIds = role === 'find'
+    ? bookings
+      .filter((booking) => bookingStatus(booking) === 'completed' && getDirection(booking, user) === 'outgoing')
+      .map((booking) => booking.id)
+      .filter(Boolean)
+    : [];
+  const completedFinderBookingIdsKey = completedFinderBookingIds.join(',');
 
   useEffect(() => {
     let active = true;
@@ -105,9 +116,45 @@ export default function BookingsList() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    if (!completedFinderBookingIdsKey) return undefined;
+    const bookingIds = completedFinderBookingIdsKey.split(',');
+    let active = true;
+    setRatingStatusChecks((current) => ({
+      ...current,
+      ...Object.fromEntries(bookingIds.map((bookingId) => [bookingId, true])),
+    }));
+
+    Promise.all(bookingIds.map(async (bookingId) => {
+      try {
+        const token = getToken();
+        const response = await fetch(`https://rental-backend.kudoo-live.workers.dev/api/bookings/${encodeURIComponent(bookingId)}/rating`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) return null;
+        return result.rated && result.rating ? [bookingId, result.rating] : null;
+      } catch {
+        return null;
+      }
+    })).then((results) => {
+      if (!active) return;
+      const savedRatings = Object.fromEntries(results.filter(Boolean));
+      if (Object.keys(savedRatings).length) {
+        setRatingStatuses((current) => ({ ...current, ...savedRatings }));
+      }
+      setRatingStatusChecks((current) => ({
+        ...current,
+        ...Object.fromEntries(bookingIds.map((bookingId) => [bookingId, false])),
+      }));
+    });
+
+    return () => { active = false; };
+  }, [completedFinderBookingIdsKey]);
+
   const roleBookings = useMemo(() => bookings.filter((booking) => {
     const direction = getDirection(booking, user);
-    return role === 'both' || (role === 'become' ? direction === 'incoming' : direction === 'outgoing');
+    return role === 'become' ? direction === 'incoming' : direction === 'outgoing';
   }), [bookings, role, user]);
 
   const metrics = useMemo(() => {
@@ -202,7 +249,7 @@ export default function BookingsList() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ rating: ratingValue, review: ratingMessage.trim(), message: ratingMessage.trim() }),
+        body: JSON.stringify({ stars: ratingValue, message: ratingMessage.trim() }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.detail || result.message || 'Unable to submit your rating.');
@@ -210,6 +257,7 @@ export default function BookingsList() {
       setBookings((current) => current.map((booking) => booking.id === ratingBooking.id
         ? { ...booking, user_rating: ratingValue, user_review: ratingMessage.trim(), rating_submitted: true }
         : booking));
+      setRatingStatuses((current) => ({ ...current, [ratingBooking.id]: { stars: ratingValue, message: ratingMessage.trim() } }));
       setRatingBooking(null);
       setRatingValue(0);
       setRatingMessage('');
@@ -219,6 +267,48 @@ export default function BookingsList() {
       setSubmittingRating(false);
     }
   }
+
+  async function openRatingDialog(booking) {
+    setCheckingRating(booking.id);
+    setActionError('');
+    try {
+      const token = getToken();
+      const response = await fetch(`https://rental-backend.kudoo-live.workers.dev/api/bookings/${encodeURIComponent(booking.id)}/rating`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.detail || result.message || 'Unable to check this booking rating.');
+      if (result.rated && result.rating) {
+        setRatingStatuses((current) => ({ ...current, [booking.id]: result.rating }));
+        return;
+      }
+      setRatingValue(0);
+      setRatingMessage('');
+      setRatingError('');
+      setPublicRatings(null);
+      setRatingBooking(booking);
+    } catch (requestError) {
+      setActionError(requestError.message || 'Unable to check this booking rating.');
+    } finally {
+      setCheckingRating(null);
+    }
+  }
+
+  const ratingBookingId = ratingBooking?.id;
+  const ratingPartnerId = ratingBooking ? getChatPartnerId(ratingBooking, user) : '';
+
+  useEffect(() => {
+    if (!ratingBookingId || !ratingPartnerId) return undefined;
+    let active = true;
+    fetch(`https://rental-backend.kudoo-live.workers.dev/api/people/${encodeURIComponent(ratingPartnerId)}/ratings`)
+      .then(async (response) => {
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.detail || result.message || 'Unable to load companion reviews.');
+        if (active) setPublicRatings(result);
+      })
+      .catch(() => { if (active) setPublicRatings({ ratings: [] }); });
+    return () => { active = false; };
+  }, [ratingBookingId, ratingPartnerId]);
 
   return (
     <main className="min-h-screen bg-[#f8f9fe] p-4 text-[#1a1c23] sm:p-6 lg:p-8">
@@ -382,7 +472,7 @@ export default function BookingsList() {
           </div>
         ) : error ? (
           <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
-            {error} {!signedIn && <Link className="font-semibold underline" to="/login">Sign in</Link>}
+            {error} {!signedIn && <Link className="font-semibold underline" to="/?auth=login">Sign in</Link>}
           </div>
         ) : visibleBookings.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-12 text-center">
@@ -399,6 +489,9 @@ export default function BookingsList() {
               const status = bookingStatus(booking);
               const canRespond = isIncoming && status === 'pending';
               const canRate = role === 'find' && !isIncoming && status === 'completed';
+              const existingRating = ratingStatuses[booking.id] || (booking.rating_submitted || booking.user_rating
+                ? { stars: booking.user_rating || booking.rating, message: booking.user_review || '' }
+                : null);
               const chatPartnerId = getChatPartnerId(booking, user);
               const canChat = ['approved', 'confirmed'].includes(status) && chatPartnerId;
               const isExpanded = expandedBooking === booking.id;
@@ -415,7 +508,7 @@ export default function BookingsList() {
                     {/* Left Details */}
                     <div className="flex flex-1 items-start gap-4">
                       <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-2xl bg-gray-100">
-                        <img src={personImage} alt={personName} className="h-full w-full object-cover" />
+                        <img src={personImage} alt={`${personName} profile`} width="112" height="112" loading="lazy" className="h-full w-full object-cover" />
                         {booking.is_online && (
                           <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span> Online
@@ -510,18 +603,19 @@ export default function BookingsList() {
 
                         {status === 'completed' && (
                           <>
-                            {canRate && (booking.rating_submitted || booking.user_rating ? (
+                            {canRate && (existingRating ? (
                               <span className="inline-flex items-center gap-1 rounded-xl bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-700">
-                                <span aria-hidden="true">★</span> Rated {booking.user_rating || ''}
+                                <span aria-hidden="true">★</span> Rated {existingRating.stars || ''}
                               </span>
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => { setRatingBooking(booking); setRatingValue(0); setRatingMessage(''); setRatingError(''); }}
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
+                                onClick={() => openRatingDialog(booking)}
+                                disabled={checkingRating === booking.id || ratingStatusChecks[booking.id]}
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-wait disabled:opacity-60"
                               >
                                 <span aria-hidden="true" className="text-base leading-none">★</span>
-                                Rate this booking
+                                {checkingRating === booking.id || ratingStatusChecks[booking.id] ? 'Checking…' : 'Rate this booking'}
                               </button>
                             ))}
                             <button
@@ -641,7 +735,7 @@ export default function BookingsList() {
       
       {ratingBooking && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !submittingRating) setRatingBooking(null); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="booking-rating-title" className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+          <section role="dialog" aria-modal="true" aria-labelledby="booking-rating-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-violet-600">Completed booking</p>
@@ -663,6 +757,30 @@ export default function BookingsList() {
                   <span className="ml-2 text-sm font-medium text-slate-500">{ratingValue ? `${ratingValue} / 5` : 'Select a rating'}</span>
                 </div>
               </fieldset>
+
+              {publicRatings && (
+                <div className="mt-5 rounded-2xl bg-violet-50/70 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-bold text-slate-800">Companion reviews</h3>
+                    <span className="text-xs font-semibold text-amber-600">★ {Number(publicRatings.rating_avg || 0).toFixed(1)} · {publicRatings.rating_count || 0} reviews</span>
+                  </div>
+                  {publicRatings.ratings?.length ? (
+                    <div className="mt-3 space-y-3">
+                      {publicRatings.ratings.slice(0, 2).map((review) => (
+                        <div key={review.id} className="border-t border-violet-100 pt-2.5 first:border-0 first:pt-0">
+                          <div className="flex items-center justify-between gap-3 text-xs">
+                            <span className="font-semibold text-slate-700">{review.from_name || 'User'}</span>
+                            <span className="font-semibold text-amber-600">★ {review.stars}/5</span>
+                          </div>
+                          {review.message && <p className="mt-1 text-xs leading-relaxed text-slate-600">{review.message}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-500">No reviews yet. You can be the first.</p>
+                  )}
+                </div>
+              )}
 
               <label htmlFor="booking-rating-message" className="mt-5 block text-sm font-semibold text-slate-700">
                 Message <span className="font-normal text-slate-400">(optional)</span>

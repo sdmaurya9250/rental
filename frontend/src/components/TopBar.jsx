@@ -344,6 +344,9 @@ return (
             <img
               src={profileImage}
               alt={`${displayName} profile`}
+              width="36"
+              height="36"
+              loading="lazy"
               className="h-full w-full object-cover"
             />
           ) : (
