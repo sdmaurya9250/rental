@@ -21,7 +21,15 @@ const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
 
 function getRoleDetails(role) {
   const normalized = String(role || '').trim().toLowerCase();
-  if (normalized === 'companion') {
+  if (normalized === 'both') {
+    return {
+      title: 'Earn and add money',
+      description: 'Use your wallet to pay for bookings as a Finder and receive earnings as a RentCoPartner.',
+      canAdd: true,
+      canEarn: true,
+    };
+  }
+  if (normalized === 'companion' || normalized === 'become') {
     return {
       title: 'Earn as a RentCoPartner',
       description: 'Your earnings from completed bookings will be shown here.',

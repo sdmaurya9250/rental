@@ -17,8 +17,9 @@ const GENDER_OPTIONS = [
 ];
 
 const INTENT_OPTIONS = [
-  { value: 'finder', label: 'Find a Partner', icon: Search },
-  { value: 'companion', label: 'Become a Partner', icon: UserPlus },
+  { value: 'finder', label: 'Find a RentCoPartner', icon: Search },
+  { value: 'companion', label: 'Become a RentCoPartner', icon: UserPlus },
+  { value: 'Both', label: 'Both', icon: Users },
 ];
 
 export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'login' }) {
@@ -436,7 +437,8 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                     />
 
                     {/* Detect Location */}
-                    {accountIntent === 'companion' && (
+                    {(accountIntent === 'companion' ||
+                      accountIntent === 'Both') && (
                       <button
                         type="button"
                         onClick={detectRegistrationCity}
@@ -461,7 +463,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
                       Location detected: {city}
                     </div>
                   )}
-                  {!coordinates && accountIntent === 'companion' && (
+                  {!coordinates && (accountIntent === 'companion' || accountIntent === 'Both') && (
                     <p className="px-1 text-[11px] leading-4 text-gray-500">
                       Tap the pin and choose Allow when Chrome asks. If location is blocked, open the site settings beside the address bar, allow Location, then try again.
                     </p>

@@ -17,17 +17,8 @@ function LandingRoute() {
 function BrowseRoute() {
   const user = getStoredUser();
   const role = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
-  const canBrowse = role !== 'companion';
-  return canBrowse ? <Seo title="Browse Companions by Service and City | RentCoPartner" description="Explore RentCoPartner profiles, compare listed social and lifestyle services, and review availability and rates to find a companion for your plans." noIndex><Outlet /></Seo> : <Navigate to="/dashboard" replace />;
-}
-
-function seoRoute(importer, seo) {
-  return {
-    lazy: async () => {
-      const { default: Page } = await importer();
-      return { Component: () => <><Seo {...seo} /><Page /></> };
-    },
-  };
+  const canBrowse = ['both', 'finder', 'finder', 'find'].includes(role);
+  return canBrowse ? <Browse /> : <Navigate to="/dashboard" replace />;
 }
 
 function notFoundRoute(importer) {

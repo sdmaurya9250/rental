@@ -319,12 +319,21 @@ class LoginRequest(BaseModel):
     password: str
 
 
+# class FeedRequest(BaseModel):
+#     lat: float
+#     lng: float
+#     city: Optional[str] = None
+#     user_id: Optional[str] = None
+#     radius_km: Optional[float] = None
+
 class FeedRequest(BaseModel):
     lat: float
     lng: float
     city: Optional[str] = None
+    area: Optional[str] = None
     user_id: Optional[str] = None
     radius_km: Optional[float] = None
+    expand: Optional[bool] = True
 
 
 class UserResponse(BaseModel):
