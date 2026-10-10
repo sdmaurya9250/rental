@@ -18,24 +18,45 @@ const SUGGESTED_LANGUAGES = ['English', 'Hindi', 'Marathi', 'Tamil', 'Telugu', '
 const SUGGESTED_CITIES = ['Ahmedabad', 'Bengaluru', 'Bhopal', 'Chandigarh', 'Chennai', 'Delhi', 'Goa', 'Hyderabad', 'Indore', 'Jaipur', 'Kanpur', 'Kochi', 'Kolkata', 'Lucknow', 'Mumbai', 'Nagpur', 'Noida', 'Prayagraj', 'Pune', 'Surat', 'Varanasi'];
 
 const SUGGESTED_SERVICES = [
-  'Coffee Partner',
-  'Café & Food Partner',
-  'Event Partner',
-  'Travel Partner',
   'Movie Partner',
-  'Shopping Buddy',
-  'Gym Partner',
-  'Music Jam',
   'In-Person Meeting',
   'Elder Care',
-  'Hangingout',
-  'Clubbing',
-  'Medical Support',
+  'Hangout Partner',
+  'Clubbing Partner',
+  'Coffee Partner',
+  'Shopping Buddy',
+  'Medical Support Partner',
   'Domestic Help',
-  'City Tour Partner',
+  'Photo Shoot Companion',
+  'Video Shoot Companion',
+  'Content Creator Buddy',
+  'Influencer Collaboration Partner',
+  'Explore the City Partner',
+  'Concert Companion',
+  'Travel Partner',
+  'Event Partner',
   'Gaming Partner (Physical)',
-  'Concert Partner',
+  'Cafe & Food Partner',
   'Professional Networking Partner',
+  'Walking Partner',
+  'Sports Partner',
+  'Board Game Partner',
+  'Bookstore Partner',
+  'Street Food Partner',
+  'Museum & Art Partner',
+  'Study Partner',
+  'Co-working Partner',
+  'Weekend Explorer',
+  'Breakfast Partner',
+  'Festival Companion',
+  'Shopping Mall Companion',
+  'Cooking Partner',
+  'Art & Craft Partner',
+  'Language Practice Partner',
+  'Virtual Companion',
+  // Existing suggestions retained for profiles that use these services.
+  'Gym Partner',
+  'Music Jam',
 ];
 const MAX_GALLERY_IMAGES = 6;
 
@@ -450,7 +471,7 @@ export default function MyProfilePage() {
   const availableCityOptions = [...new Set([...cityOptions, profile.city].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
   return (
-    <FeaturePage  subtitle="Keep your details, profile image, and pricing up to date.">
+    <FeaturePage title="My Profile"  subtitle="Keep your details, profile image, and pricing up to date.">
       {(loadingProfile || completion < 100) && <section className="mb-6 max-w-5xl rounded-2xl border border-violet-100 bg-white p-5 shadow-sm" aria-label="Profile completion">
         <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-[#171426]">Profile completion</h2><p className="mt-1 text-sm text-[#706a80]">A complete profile helps people get to know you.</p></div><span className="text-lg font-bold text-violet-700">{loadingProfile ? '…' : `${completion}%`}</span></div>
         <div className="mt-4 h-3 overflow-hidden rounded-full bg-violet-100" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={completion}><div className="h-full rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 transition-all" style={{ width: `${completion}%` }} /></div>

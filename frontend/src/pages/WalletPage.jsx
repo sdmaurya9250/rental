@@ -159,7 +159,7 @@ export default function WalletPage() {
 
   return (
     <FeaturePage 
-      // title="My Wallet" 
+      title="My Wallet" 
       subtitle="Manage your balance, add funds and view your transaction history."
       actionButton={
         <button className="inline-flex items-center gap-1.5 rounded-full border border-purple-200 bg-white px-4 py-2 text-xs font-semibold text-purple-700 shadow-sm hover:bg-purple-50 transition">

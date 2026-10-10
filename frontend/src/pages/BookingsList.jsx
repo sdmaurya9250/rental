@@ -160,21 +160,25 @@ export default function BookingsList() {
     let upcoming = 0;
     let completed = 0;
     let cancelled = 0;
-    let totalSpent = 0;
+    let totalAmount = 0;
 
     roleBookings.forEach((b) => {
       const st = bookingStatus(b);
-      const amount = Number(b.total_amount) || 0;
 
       if (st === 'completed') completed += 1;
       else if (['cancelled', 'rejected'].includes(st)) cancelled += 1;
       else upcoming += 1;
 
-      totalSpent += amount;
+      const countsTowardTotal = role === 'companion'
+        ? ['approved', 'confirmed', 'completed'].includes(st)
+        : !['cancelled', 'rejected'].includes(st);
+      if (countsTowardTotal) {
+        totalAmount += Number(role === 'companion' ? b.price : b.total_amount) || 0;
+      }
     });
 
-    return { upcoming, completed, cancelled, totalSpent };
-  }, [roleBookings]);
+    return { upcoming, completed, cancelled, totalAmount };
+  }, [roleBookings, role]);
 
   const visibleBookings = useMemo(() => roleBookings.filter((booking) => {
     const status = bookingStatus(booking);
@@ -328,14 +332,14 @@ export default function BookingsList() {
   }, [ratingBookingId, ratingPartnerId]);
 
   return (
-    <main className="min-h-screen bg-[#f8f9fe] p-4 text-[#1a1c23] sm:p-6 lg:p-8">
+    <main className="min-h-screen bg-[#f8f9fe] p-2 text-[#1a1c23] sm:p-6 lg:p-8">
       <div className="mx-auto max-w-6xl space-y-6">
         
         {/* Header */}
-        {/* <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#111827]">My Bookings</h1>
-          <p className="mt-0.5 text-sm text-[#6b7280]">Track and manage all your appointments and booking requests.</p>
-        </div> */}
+        <div>
+          <h1 className="text-xl font-bold text-[#171426] sm:text-2xl">My Bookings</h1>
+          {/* <p className="mt-0.5 text-sm text-[#6b7280]">Track and manage all your appointments and booking requests.</p> */}
+        </div>
 
 {/* Top Summary Metrics */}
 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
@@ -378,7 +382,7 @@ export default function BookingsList() {
     </div>
   </div>
 
-  {/* Total Spent */}
+  {/* Role-aware booking total */}
   <div className="flex items-center gap-2.5 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:gap-3.5 sm:p-4">
     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 sm:h-12 sm:w-12">
       <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -386,8 +390,8 @@ export default function BookingsList() {
       </svg>
     </div>
     <div className="min-w-0 flex-1">
-      <p className="truncate text-lg font-bold leading-tight text-gray-900 sm:text-xl">{formatPrice(metrics.totalSpent)}</p>
-      <p className="truncate text-xs font-medium text-gray-500">Total Spent</p>
+      <p className="truncate text-lg font-bold leading-tight text-gray-900 sm:text-xl">{formatPrice(metrics.totalAmount)}</p>
+      <p className="truncate text-xs font-medium text-gray-500">{role === 'companion' ? 'Total Earnings' : 'Total Spent'}</p>
     </div>
   </div>
 </div>
@@ -463,7 +467,7 @@ export default function BookingsList() {
   </div>
 
   {/* Search & Filter Bar */}
-  <div className="order-1 flex w-full items-center gap-2 lg:order-2 lg:w-auto">
+  <div className="hidden order-1 w-full items-center gap-2 sm:flex lg:order-2 lg:w-auto">
     <div className="relative min-w-0 flex-1 lg:w-64 lg:flex-none">
       <svg className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -514,6 +518,10 @@ export default function BookingsList() {
               const isExpanded = expandedBooking === booking.id;
               const personName = booking.person_name || booking.customer_name || booking.rent_person?.name || 'Unknown person';
               const personImage = booking.person_image || booking.customer_image || booking.rent_person?.image || 'https://i.pravatar.cc/150?img=1';
+              const companionProfileId = booking.rent_person_id || booking.provider_id || booking.rent_person?.id;
+              const displayedAmount = role === 'companion'
+                ? Number(booking.price) || 0
+                : Number(booking.total_amount) || 0;
 
               const serviceCandidate = booking.service_name || booking.service || booking.services?.[0];
               const bookedService = typeof serviceCandidate === 'string' ? serviceCandidate : serviceCandidate?.name;
@@ -587,7 +595,10 @@ export default function BookingsList() {
                       </div>
 
                       <div className="text-xl font-extrabold text-gray-900">
-                        {formatPrice(Number(booking.total_amount) || 0)}
+                        <span className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                          {role === 'companion' ? 'Price' : 'Total amount'}
+                        </span>
+                        {formatPrice(displayedAmount)}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2">
@@ -635,13 +646,13 @@ export default function BookingsList() {
                                 {checkingRating === booking.id || ratingStatusChecks[booking.id] ? 'Checking…' : 'Rate this booking'}
                               </button>
                             ))}
-                            <button
-                              type="button"
+                            {role === 'finder' && companionProfileId && <Link
+                              to={`/people/${encodeURIComponent(companionProfileId)}`}
                               className="flex items-center gap-1.5 rounded-xl bg-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-purple-700"
                             >
                               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                               Book Again
-                            </button>
+                            </Link>}
                           </>
                         )}
 

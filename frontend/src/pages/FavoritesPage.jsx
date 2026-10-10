@@ -36,7 +36,7 @@ export default function FavoritesPage() {
 
   return (
     <FeaturePage title="My favorites" subtitle="Quick booking from your saved people.">
-      <div className="max-w-2xl space-y-3">
+      <div className="w-full space-y-3">
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
         {loading ? (
           <p className="rounded-xl border border-violet-100 bg-white p-5 text-sm text-gray-500">Loading favorites…</p>
