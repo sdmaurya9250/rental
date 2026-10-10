@@ -110,6 +110,14 @@ function uid(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function getServicePriceError(error) {
+  const details = Array.isArray(error?.data) ? error.data : [];
+  const hasInvalidServicePrice = details.some((item) => item?.loc?.includes('services') && item?.loc?.includes('price'));
+  return hasInvalidServicePrice
+    ? 'Enter a valid whole-number price of at least ₹100 for every service.'
+    : error?.message || 'Unable to save your profile.';
+}
+
 // ---- Small reusable pieces ---------------------------------------------
 
 function CollapsibleSection({ title, subtitle, defaultOpen = true, children }) {
@@ -377,23 +385,36 @@ export default function MyProfilePage() {
   const addService = (name, price) => {
     const trimmed = name.trim();
     if (!trimmed) return;
+    const amount = Number(price);
+    if (!Number.isInteger(amount) || amount < 100) {
+      setErrorMsg('Set a service price of at least ₹100 per hour before adding it.');
+      return;
+    }
     if (profile.services.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())) return;
     setProfile({
       ...profile,
-      services: [...profile.services, { id: uid('svc'), name: trimmed, price: Number(price) || 0 }],
+      services: [...profile.services, { id: uid('svc'), name: trimmed, price: amount }],
     });
     setServiceDraft({ name: '', price: '' });
+    setErrorMsg('');
   };
   const updateServicePrice = (id, price) => {
     setProfile({
       ...profile,
-      services: profile.services.map((s) => (s.id === id ? { ...s, price: Number(price) || 0 } : s)),
+      services: profile.services.map((s) => (s.id === id ? { ...s, price: price === '' ? '' : Number(price) } : s)),
     });
   };
   const removeService = (id) => setProfile({ ...profile, services: profile.services.filter((s) => s.id !== id) });
 
   // Save --------------------------------------------------------------------
   const saveProfile = async () => {
+    if (!isFinderRole) {
+      const invalidService = profile.services.find((service) => !Number.isInteger(Number(service.price)) || Number(service.price) < 100);
+      if (invalidService) {
+        setErrorMsg(`Enter a whole-number price of at least ₹100 per hour for “${invalidService.name}”.`);
+        return;
+      }
+    }
     setSaving(true);
     setErrorMsg('');
     try {
@@ -411,13 +432,13 @@ export default function MyProfilePage() {
         availableTime: JSON.stringify({ days: profile.availableDays, timeSlots: profile.timeSlots }),
         languages: JSON.stringify(profile.languages),
         interests: JSON.stringify(profile.services.map((service) => service.name)),
-        services: profile.services,
+        services: profile.services.map((service) => ({ ...service, price: Number(service.price) })),
         gallery: profile.gallery,
       });
       setSaved(true);
       window.setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      setErrorMsg(err.message || 'Unable to save your profile.');
+      setErrorMsg(getServicePriceError(err));
     } finally {
       setSaving(false);
     }
@@ -615,7 +636,7 @@ export default function MyProfilePage() {
                 Choose from list
                 <select
                   value=""
-                  onChange={(e) => addService(e.target.value, 0)}
+                  onChange={(e) => addService(e.target.value, Math.max(100, Number(serviceDraft.price) || 100))}
                   className="mt-2 block rounded-lg border border-[#e4dff0] px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-violet-300"
                 >
                   <option value="" disabled>Add a service…</option>
@@ -625,11 +646,11 @@ export default function MyProfilePage() {
                 </select>
               </label>
               <label className="text-sm font-semibold text-[#40394f]">
-                Or add your own
+               Add Your Own Service
                 <input
                   value={serviceDraft.name}
                   onChange={(e) => setServiceDraft({ ...serviceDraft, name: e.target.value })}
-                  placeholder="e.g. City tour guide"
+                  placeholder="e.g. City Tour Companion, Event Companion"
                   className="mt-2 block rounded-lg border border-[#e4dff0] px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-violet-300"
                 />
               </label>
@@ -637,10 +658,11 @@ export default function MyProfilePage() {
                 Price (₹/hr)
                 <input
                   type="number"
-                  min="0"
+                  min="100"
+                  step="1"
                   value={serviceDraft.price}
                   onChange={(e) => setServiceDraft({ ...serviceDraft, price: e.target.value })}
-                  placeholder="0"
+                  placeholder="Min. 100"
                   className="mt-2 block w-28 rounded-lg border border-[#e4dff0] px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-violet-300"
                 />
               </label>
@@ -662,7 +684,8 @@ export default function MyProfilePage() {
                     <span className="text-xs text-[#706a80]">₹</span>
                     <input
                       type="number"
-                      min="0"
+                      min="100"
+                      step="1"
                       value={service.price}
                       onChange={(e) => updateServicePrice(service.id, e.target.value)}
                       className="w-24 rounded-lg border border-[#e4dff0] px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-violet-300"

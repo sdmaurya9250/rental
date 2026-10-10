@@ -90,21 +90,21 @@ export default function Home() {
   ];
 
   const whyJoinFeatures = [
-    { icon: <MapPin className="w-5 h-5 text-violet-600" />, title: 'City-Based Discovery', description: 'Let visitors discover profiles based on their city and preferred location.' },
-    { icon: <Banknote className="w-5 h-5 text-violet-600" />, title: 'Set Your Rate', description: "Display the rate you choose according to the platform's applicable rules." },
-    { icon: <CalendarDays className="w-5 h-5 text-violet-600" />, title: 'Control Availability', description: 'Keep your availability updated and accept requests that fit your schedule.' },
+    { icon: <MapPin className="w-5 h-5 text-pink-500" />, title: 'City-Based Discovery', description: 'Let visitors discover profiles based on their city and preferred location.' },
+    { icon: <Banknote className="w-5 h-5 text-pink-500" />, title: 'Set Your Rate', description: "Display the rate you choose according to the platform's applicable rules." },
+    { icon: <CalendarDays className="w-5 h-5 text-pink-500" />, title: 'Control Availability', description: 'Keep your availability updated and accept requests that fit your schedule.' },
     { icon: <Star className="w-5 h-5 text-amber-500 fill-amber-400" />, title: 'Reviews & Ratings', description: 'Approved reviews and ratings can help visitors understand your profile and experience.' },
-    { icon: <Shield className="w-5 h-5 text-violet-600" />, title: 'Profile Verification', description: 'Build trust with complete profile information and applicable verification features.' },
-    { icon: <Smartphone className="w-5 h-5 text-violet-600" />, title: 'Booking Requests', description: 'Receive booking requests through the platform and review the details before accepting.' },
+    { icon: <Shield className="w-5 h-5 text-pink-500" />, title: 'Profile Verification', description: 'Build trust with complete profile information and applicable verification features.' },
+    { icon: <Smartphone className="w-5 h-5 text-pink-500" />, title: 'Booking Requests', description: 'Receive booking requests through the platform and review the details before accepting.' },
   ];
 
   const stepProcess = [
-    { step: '01', icon: <UserPlus className="w-5 h-5 text-violet-600" />, title: 'Create Your Account', description: 'Start with your basic details and create your account in a few simple steps.' },
-    { step: '02', icon: <Sparkles className="w-5 h-5 text-violet-600" />, title: 'Build Your Profile', description: 'Add your photo, city, age, rate, availability and other profile information.' },
-    { step: '03', icon: <Inbox className="w-5 h-5 text-violet-600" />, title: 'Receive Requests', description: 'People can discover your profile and send booking or contact requests.' },
-    { step: '04', icon: <Handshake className="w-5 h-5 text-violet-600" />, title: 'Accept Bookings', description: 'Review each request and decide which bookings fit your schedule.' },
-    { step: '05', icon: <CircleDollarSign className="w-5 h-5 text-violet-600" />, title: 'Complete & Earn', description: 'Complete accepted bookings and keep track of your earnings from your profile.' },
-    { step: '06', icon: <TrendingUp className="w-5 h-5 text-violet-600" />, title: 'Track Your Progress', description: 'Keep your profile updated and build trust through reviews and completed activity.' },
+    { step: '01', icon: <UserPlus className="w-5 h-5 text-pink-500" />, title: 'Create Your Account', description: 'Start with your basic details and create your account in a few simple steps.' },
+    { step: '02', icon: <Sparkles className="w-5 h-5 text-pink-500" />, title: 'Build Your Profile', description: 'Add your photo, city, age, rate, availability and other profile information.' },
+    { step: '03', icon: <Inbox className="w-5 h-5 text-pink-500" />, title: 'Receive Requests', description: 'People can discover your profile and send booking or contact requests.' },
+    { step: '04', icon: <Handshake className="w-5 h-5 text-pink-500" />, title: 'Accept Bookings', description: 'Review each request and decide which bookings fit your schedule.' },
+    { step: '05', icon: <CircleDollarSign className="w-5 h-5 text-pink-500" />, title: 'Complete & Earn', description: 'Complete accepted bookings and keep track of your earnings from your profile.' },
+    { step: '06', icon: <TrendingUp className="w-5 h-5 text-pink-500" />, title: 'Track Your Progress', description: 'Keep your profile updated and build trust through reviews and completed activity.' },
   ];
 
   const faqs = [
@@ -380,7 +380,7 @@ export default function Home() {
                 className="group relative flex min-h-[195px] flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white p-3.5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-violet-200 hover:shadow-xl"
               >
                 <div className="flex items-start justify-between">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-100 bg-violet-50 text-violet-600 transition-all duration-300 group-hover:bg-[#7a0ff0] group-hover:text-white">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-100 bg-violet-50 text-pink-500 transition-all duration-300 group-hover:bg-[#7a0ff0] group-hover:text-white">
                     {item.icon}
                   </div>
                   <span className="text-[9px] font-bold text-gray-300">
@@ -429,7 +429,9 @@ export default function Home() {
                 key={index}
                 className="bg-white/90 backdrop-blur-sm border border-violet-100/80 rounded-3xl p-6 h-full shadow-sm hover:shadow-md hover:border-violet-200 transition-all duration-300 flex flex-col"
               >
-                <div className="w-11 h-11 rounded-2xl bg-violet-50/80 flex items-center justify-center mb-4">{item.icon}</div>
+                <div className="w-11 h-11 rounded-2xl bg-violet-50/80 flex items-center justify-center mb-4 text-pink-500">
+  {item.icon}
+</div>
                 <h3 className="text-lg font-bold text-[#16132a] mb-2">{item.title}</h3>
                 <p className="text-xs text-gray-500 leading-relaxed">{item.description}</p>
               </div>
@@ -451,7 +453,9 @@ export default function Home() {
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-10 h-10 rounded-2xl bg-violet-50/80 flex items-center justify-center">{item.icon}</div>
-                  <span className="text-2xl font-black text-violet-200/90 tracking-tight">{item.step}</span>
+                  <span className="text-2xl font-black text-violet-400 tracking-tight">
+  {item.step}
+</span>
                 </div>
                 <h3 className="text-base font-bold text-[#16132a] mb-2">{item.title}</h3>
                 <p className="text-xs text-gray-500 leading-relaxed">{item.description}</p>

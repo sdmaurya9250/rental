@@ -13,7 +13,9 @@ import {
   ShieldCheck, 
   ChevronLeft, 
   ChevronRight,
-  Plus
+  Plus,
+  Wallet,
+  X
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import FeaturePage from '../components/FeaturePage';
@@ -124,6 +126,7 @@ function ProfileDetails({ person }) {
   const [customerNote, setCustomerNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState('');
+  const [insufficientBalance, setInsufficientBalance] = useState(null);
   const [createdBooking, setCreatedBooking] = useState(null);
   const [showBookingForm, setShowBookingForm] = useState(false);
   const [ratingSummary, setRatingSummary] = useState(null);
@@ -234,7 +237,11 @@ function ProfileDetails({ person }) {
       });
       setCreatedBooking(booking);
     } catch (error) {
-      setBookingError(error.message || 'Unable to submit this booking. Please try again.');
+      if (error.code === 'INSUFFICIENT_BALANCE' || error.data?.code === 'INSUFFICIENT_BALANCE') {
+        setInsufficientBalance(error.data || error);
+      } else {
+        setBookingError(error.message || 'Unable to submit this booking. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -619,6 +626,32 @@ function ProfileDetails({ person }) {
         )}
 
       </div>
+
+      {insufficientBalance && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setInsufficientBalance(null); }}>
+          <section role="alertdialog" aria-modal="true" aria-labelledby="insufficient-balance-title" className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-violet-100 p-5">
+              <div className="flex items-center gap-3">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-rose-50 text-rose-600"><Wallet className="h-5 w-5" /></span>
+                <div>
+                  <h2 id="insufficient-balance-title" className="text-lg font-bold text-slate-900">Insufficient wallet balance</h2>
+                  <p className="mt-1 text-xs text-slate-500">Add funds to your wallet to complete this booking.</p>
+                </div>
+              </div>
+              <button type="button" aria-label="Close" onClick={() => setInsufficientBalance(null)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-3 p-5">
+              <div className="flex justify-between text-sm"><span className="text-slate-500">Booking amount</span><strong className="text-slate-900">{formatPrice(Number(insufficientBalance.booking_amount) || totalAmount)}</strong></div>
+              <div className="flex justify-between text-sm"><span className="text-slate-500">Available balance</span><strong className="text-slate-900">{formatPrice(Number(insufficientBalance.available_balance) || 0)}</strong></div>
+              <div className="flex justify-between rounded-xl bg-rose-50 px-3 py-2.5 text-sm"><span className="font-semibold text-rose-700">Amount to add</span><strong className="text-rose-700">{formatPrice(Number(insufficientBalance.amount_needed) || Math.max(totalAmount - Number(insufficientBalance.available_balance || 0), 0))}</strong></div>
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setInsufficientBalance(null)} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Close</button>
+                <Link to="/wallet" onClick={() => setInsufficientBalance(null)} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-4 py-2.5 text-sm font-semibold text-white hover:from-violet-700 hover:to-fuchsia-600"><Wallet className="h-4 w-4" /> Add funds</Link>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

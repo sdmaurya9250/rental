@@ -53,7 +53,14 @@ async function request(endpoint, { method = 'GET', body, rawBody, contentType, a
 
   if (!response.ok) {
     const message = data?.message || data?.error || data?.detail || `Request failed (${response.status})`;
-    throw new Error(message);
+    const error = new Error(typeof message === 'string' ? message : `Request failed (${response.status})`);
+    const payload = data?.detail && typeof data.detail === 'object' ? data.detail : data;
+    error.data = payload;
+    error.code = payload?.code;
+    error.booking_amount = payload?.booking_amount;
+    error.available_balance = payload?.available_balance;
+    error.amount_needed = payload?.amount_needed;
+    throw error;
   }
 
   return data;

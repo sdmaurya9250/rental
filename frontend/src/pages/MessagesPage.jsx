@@ -71,7 +71,10 @@ export default function MessagesPage() {
         if (!active) return;
         const items = listFrom(result, 'conversations');
         setConversations(items);
-        setSelectedUserId((selected) => selected || (items[0] ? conversationUserId(items[0]) : ''));
+        setSelectedUserId((selected) => {
+          if (selected || !items[0]) return selected;
+          return window.matchMedia('(min-width: 768px)').matches ? conversationUserId(items[0]) : '';
+        });
       })
       .catch((requestError) => { if (active) setError(requestError.message || 'Unable to load conversations.'); })
       .finally(() => { if (active) setLoadingInbox(false); });
