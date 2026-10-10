@@ -168,7 +168,7 @@ export default function MyProfilePage() {
   const [cameraError, setCameraError] = useState('');
   const user = getStoredUser() || {};
   const role = String(user.want_to || user.wantTo || user.accountIntent || '').trim().toLowerCase();
-  const isFinderRole = role === 'find' || role.includes('find a rentpeople');
+  const isFinderRole = role === 'find' || role.includes('finder');
   const [profile, setProfile] = useState(defaultProfile);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [saved, setSaved] = useState(false);

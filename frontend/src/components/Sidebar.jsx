@@ -41,8 +41,8 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
   const displayName = user?.fullName || user?.full_name || user?.name || user?.username || user?.email || 'My account';
   const profileImage = user?.image || user?.profile_image || user?.avatar_url || user?.photo || '';
   const role = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
-  const isBecomeRole = role === 'become a rentpeople' || role === 'become';
-  const isFindRole = role === 'find a rentpeople' || role === 'find';
+  const isBecomeRole = role === 'companion' || role === 'become';
+  const isFindRole = role === 'finder' || role === 'find';
   const isBothRole = role === 'both';
   const roleCategories = [
     { to: '/my-profile', label: 'Become', icon: UserPlus },

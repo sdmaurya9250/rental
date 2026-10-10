@@ -77,7 +77,7 @@ export default function ProfilePage() {
 function ProfileDetails({ person }) {
   const signedInUser = getStoredUser() || {};
   const signedInRole = String(signedInUser.want_to || signedInUser.wantTo || signedInUser.accountIntent || '').trim().toLowerCase();
-  const isBecomeOnly = ['become a rentpeople', 'become a rentcopartner', 'become'].includes(signedInRole);
+  const isBecomeOnly = ['companion', 'become a rentcopartner', 'become'].includes(signedInRole);
   const services = useMemo(() => (person.services || [
     { 
       title: 'Movie Partner', 

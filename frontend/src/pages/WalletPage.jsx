@@ -29,7 +29,7 @@ function getRoleDetails(role) {
       canEarn: true,
     };
   }
-  if (normalized === 'become a rentpeople' || normalized === 'become') {
+  if (normalized === 'companion' || normalized === 'become') {
     return {
       title: 'Earn as a RentCoPartner',
       description: 'Your earnings from completed bookings will be shown here.',

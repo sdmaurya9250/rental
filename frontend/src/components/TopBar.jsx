@@ -56,7 +56,7 @@ export default function TopBar({ onMenuToggle }) {
   const initials = displayName === 'My account' ? 'M' : displayName.charAt(0).toUpperCase();
   const profileImage = user?.image || user?.profile_image || user?.avatar_url || user?.photo || '';
   const accountRole = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
-  const isBecomeOnly = ['become a rentpeople', 'become a rentcopartner', 'become'].includes(accountRole);
+  const isBecomeOnly = ['companion', 'become a rentcopartner', 'become'].includes(accountRole);
 
   function submitSearch(event) {
     event.preventDefault();

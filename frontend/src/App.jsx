@@ -21,7 +21,7 @@ import { getStoredUser, isAuthenticated } from './auth/auth';
 function BrowseRoute() {
   const user = getStoredUser();
   const role = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
-  const canBrowse = ['both', 'find a rentpeople', 'find a rentcopartner', 'find'].includes(role);
+  const canBrowse = ['both', 'finder', 'finder', 'find'].includes(role);
   return canBrowse ? <Browse /> : <Navigate to="/dashboard" replace />;
 }
 
