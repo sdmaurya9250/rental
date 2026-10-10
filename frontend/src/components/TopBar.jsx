@@ -40,14 +40,10 @@ export default function TopBar({ onMenuToggle }) {
   }, [cityQuery]);
 
   useEffect(() => {
-    let active = true;
     const refreshStoredUser = () => setUser(getStoredUser() || {});
     window.addEventListener('rp-profile-updated', refreshStoredUser);
-    getMyProfile()
-      .then((profile) => { if (active && profile) setUser({ ...(getStoredUser() || {}), ...(profile.profile || profile) }); })
-      .catch(() => {});
+    getMyProfile().catch(() => {});
     return () => {
-      active = false;
       window.removeEventListener('rp-profile-updated', refreshStoredUser);
     };
   }, []);
@@ -344,6 +340,9 @@ return (
             <img
               src={profileImage}
               alt={`${displayName} profile`}
+              width="36"
+              height="36"
+              loading="lazy"
               className="h-full w-full object-cover"
             />
           ) : (

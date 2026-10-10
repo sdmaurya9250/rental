@@ -18,24 +18,45 @@ const SUGGESTED_LANGUAGES = ['English', 'Hindi', 'Marathi', 'Tamil', 'Telugu', '
 const SUGGESTED_CITIES = ['Ahmedabad', 'Bengaluru', 'Bhopal', 'Chandigarh', 'Chennai', 'Delhi', 'Goa', 'Hyderabad', 'Indore', 'Jaipur', 'Kanpur', 'Kochi', 'Kolkata', 'Lucknow', 'Mumbai', 'Nagpur', 'Noida', 'Prayagraj', 'Pune', 'Surat', 'Varanasi'];
 
 const SUGGESTED_SERVICES = [
-  'Coffee Partner',
-  'Café & Food Partner',
-  'Event Partner',
-  'Travel Partner',
   'Movie Partner',
-  'Shopping Buddy',
-  'Gym Partner',
-  'Music Jam',
   'In-Person Meeting',
   'Elder Care',
-  'Hangingout',
-  'Clubbing',
-  'Medical Support',
+  'Hangout Partner',
+  'Clubbing Partner',
+  'Coffee Partner',
+  'Shopping Buddy',
+  'Medical Support Partner',
   'Domestic Help',
-  'City Tour Partner',
+  'Photo Shoot Companion',
+  'Video Shoot Companion',
+  'Content Creator Buddy',
+  'Influencer Collaboration Partner',
+  'Explore the City Partner',
+  'Concert Companion',
+  'Travel Partner',
+  'Event Partner',
   'Gaming Partner (Physical)',
-  'Concert Partner',
+  'Cafe & Food Partner',
   'Professional Networking Partner',
+  'Walking Partner',
+  'Sports Partner',
+  'Board Game Partner',
+  'Bookstore Partner',
+  'Street Food Partner',
+  'Museum & Art Partner',
+  'Study Partner',
+  'Co-working Partner',
+  'Weekend Explorer',
+  'Breakfast Partner',
+  'Festival Companion',
+  'Shopping Mall Companion',
+  'Cooking Partner',
+  'Art & Craft Partner',
+  'Language Practice Partner',
+  'Virtual Companion',
+  // Existing suggestions retained for profiles that use these services.
+  'Gym Partner',
+  'Music Jam',
 ];
 const MAX_GALLERY_IMAGES = 6;
 
@@ -108,6 +129,14 @@ function mapApiProfile(data, user = {}) {
 
 function uid(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function getServicePriceError(error) {
+  const details = Array.isArray(error?.data) ? error.data : [];
+  const hasInvalidServicePrice = details.some((item) => item?.loc?.includes('services') && item?.loc?.includes('price'));
+  return hasInvalidServicePrice
+    ? 'Enter a valid whole-number price of at least ₹100 for every service.'
+    : error?.message || 'Unable to save your profile.';
 }
 
 // ---- Small reusable pieces ---------------------------------------------
@@ -222,7 +251,7 @@ export default function MyProfilePage() {
   // The profile endpoint identifies the account from the saved bearer token.
   useEffect(() => {
     if (!isAuthenticated()) {
-      navigate('/login', { replace: true });
+      navigate('/?auth=login', { replace: true });
       return;
     }
     let active = true;
@@ -377,23 +406,36 @@ export default function MyProfilePage() {
   const addService = (name, price) => {
     const trimmed = name.trim();
     if (!trimmed) return;
+    const amount = Number(price);
+    if (!Number.isInteger(amount) || amount < 100) {
+      setErrorMsg('Set a service price of at least ₹100 per hour before adding it.');
+      return;
+    }
     if (profile.services.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())) return;
     setProfile({
       ...profile,
-      services: [...profile.services, { id: uid('svc'), name: trimmed, price: Number(price) || 0 }],
+      services: [...profile.services, { id: uid('svc'), name: trimmed, price: amount }],
     });
     setServiceDraft({ name: '', price: '' });
+    setErrorMsg('');
   };
   const updateServicePrice = (id, price) => {
     setProfile({
       ...profile,
-      services: profile.services.map((s) => (s.id === id ? { ...s, price: Number(price) || 0 } : s)),
+      services: profile.services.map((s) => (s.id === id ? { ...s, price: price === '' ? '' : Number(price) } : s)),
     });
   };
   const removeService = (id) => setProfile({ ...profile, services: profile.services.filter((s) => s.id !== id) });
 
   // Save --------------------------------------------------------------------
   const saveProfile = async () => {
+    if (!isFinderRole) {
+      const invalidService = profile.services.find((service) => !Number.isInteger(Number(service.price)) || Number(service.price) < 100);
+      if (invalidService) {
+        setErrorMsg(`Enter a whole-number price of at least ₹100 per hour for “${invalidService.name}”.`);
+        return;
+      }
+    }
     setSaving(true);
     setErrorMsg('');
     try {
@@ -411,13 +453,13 @@ export default function MyProfilePage() {
         availableTime: JSON.stringify({ days: profile.availableDays, timeSlots: profile.timeSlots }),
         languages: JSON.stringify(profile.languages),
         interests: JSON.stringify(profile.services.map((service) => service.name)),
-        services: profile.services,
+        services: profile.services.map((service) => ({ ...service, price: Number(service.price) })),
         gallery: profile.gallery,
       });
       setSaved(true);
       window.setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      setErrorMsg(err.message || 'Unable to save your profile.');
+      setErrorMsg(getServicePriceError(err));
     } finally {
       setSaving(false);
     }
@@ -429,7 +471,7 @@ export default function MyProfilePage() {
   const availableCityOptions = [...new Set([...cityOptions, profile.city].filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
   return (
-    <FeaturePage title="My profile" subtitle="Keep your details, profile image, and pricing up to date.">
+    <FeaturePage title="My Profile"  subtitle="Keep your details, profile image, and pricing up to date.">
       {(loadingProfile || completion < 100) && <section className="mb-6 max-w-5xl rounded-2xl border border-violet-100 bg-white p-5 shadow-sm" aria-label="Profile completion">
         <div className="flex items-center justify-between gap-3"><div><h2 className="font-bold text-[#171426]">Profile completion</h2><p className="mt-1 text-sm text-[#706a80]">A complete profile helps people get to know you.</p></div><span className="text-lg font-bold text-violet-700">{loadingProfile ? '…' : `${completion}%`}</span></div>
         <div className="mt-4 h-3 overflow-hidden rounded-full bg-violet-100" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={completion}><div className="h-full rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 transition-all" style={{ width: `${completion}%` }} /></div>
@@ -438,7 +480,7 @@ export default function MyProfilePage() {
       <div className="grid max-w-5xl gap-6 lg:grid-cols-[260px_1fr]">
         <aside className="h-fit rounded-2xl border border-[#e7e1f2] bg-white p-5 text-center shadow-sm">
           {errorMsg && <p role="alert" className="mb-3 text-xs text-red-600">{errorMsg}</p>}
-          {profile.image ? <img src={profile.image} alt="Your profile" className="mx-auto h-36 w-36 rounded-full object-cover ring-4 ring-violet-100" /> : <div className="mx-auto grid h-36 w-36 place-items-center rounded-full bg-violet-100 text-3xl font-bold text-violet-500">{profile.fullName?.charAt(0)?.toUpperCase() || '?'}</div>}
+          {profile.image ? <img src={profile.image} alt="Your profile" width="144" height="144" loading="lazy" className="mx-auto h-36 w-36 rounded-full object-cover ring-4 ring-violet-100" /> : <div className="mx-auto grid h-36 w-36 place-items-center rounded-full bg-violet-100 text-3xl font-bold text-violet-500">{profile.fullName?.charAt(0)?.toUpperCase() || '?'}</div>}
           <label className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-violet-200 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50">
             <Camera className="h-4 w-4" />
             {uploadingAvatar ? 'Uploading…' : 'Upload image'}
@@ -494,7 +536,7 @@ export default function MyProfilePage() {
                 <div className="mt-3">
                   <button type="button" onClick={useCurrentLocation} disabled={locating} className="inline-flex items-center gap-2 rounded-lg border border-violet-200 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-60"><MapPin className="h-3.5 w-3.5" />{locating ? 'Finding location…' : profile.lat != null && profile.lng != null ? 'Update current location' : 'Use my current location'}</button>
                   {profile.lat != null && profile.lng != null && <span className="ml-2 text-xs font-normal text-[#827b95]">Coordinates ready to save</span>}
-                  <span className="mt-1 block text-xs font-normal text-[#827b95]">Your location helps Find a RentCoPartner users discover nearby providers. Browser permission is required.</span>
+                  <span className="mt-1 block text-xs font-normal text-[#827b95]">Your location helps people looking for a partner discover nearby providers. Browser permission is required.</span>
                 </div>
               </label>
               <label className="block text-sm font-semibold text-[#40394f]">
@@ -615,7 +657,7 @@ export default function MyProfilePage() {
                 Choose from list
                 <select
                   value=""
-                  onChange={(e) => addService(e.target.value, 0)}
+                  onChange={(e) => addService(e.target.value, Math.max(100, Number(serviceDraft.price) || 100))}
                   className="mt-2 block rounded-lg border border-[#e4dff0] px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-violet-300"
                 >
                   <option value="" disabled>Add a service…</option>
@@ -625,11 +667,11 @@ export default function MyProfilePage() {
                 </select>
               </label>
               <label className="text-sm font-semibold text-[#40394f]">
-                Or add your own
+               Add Your Own Service
                 <input
                   value={serviceDraft.name}
                   onChange={(e) => setServiceDraft({ ...serviceDraft, name: e.target.value })}
-                  placeholder="e.g. City tour guide"
+                  placeholder="e.g. City Tour Companion, Event Companion"
                   className="mt-2 block rounded-lg border border-[#e4dff0] px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-violet-300"
                 />
               </label>
@@ -637,10 +679,11 @@ export default function MyProfilePage() {
                 Price (₹/hr)
                 <input
                   type="number"
-                  min="0"
+                  min="100"
+                  step="1"
                   value={serviceDraft.price}
                   onChange={(e) => setServiceDraft({ ...serviceDraft, price: e.target.value })}
-                  placeholder="0"
+                  placeholder="Min. 100"
                   className="mt-2 block w-28 rounded-lg border border-[#e4dff0] px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-violet-300"
                 />
               </label>
@@ -662,7 +705,8 @@ export default function MyProfilePage() {
                     <span className="text-xs text-[#706a80]">₹</span>
                     <input
                       type="number"
-                      min="0"
+                      min="100"
+                      step="1"
                       value={service.price}
                       onChange={(e) => updateServicePrice(service.id, e.target.value)}
                       className="w-24 rounded-lg border border-[#e4dff0] px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-violet-300"
@@ -682,7 +726,7 @@ export default function MyProfilePage() {
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
               {profile.gallery.map((src, index) => (
                 <div key={index} className="group relative aspect-square overflow-hidden rounded-lg border border-[#e4dff0]">
-                  <img src={src} alt={`Photo ${index + 1}`} className="h-full w-full object-cover" />
+                  <img src={src} alt={`Profile photo ${index + 1}`} width="240" height="240" loading="lazy" className="h-full w-full object-cover" />
                   <button
                     type="button"
                     onClick={() => removeGalleryImage(index)}

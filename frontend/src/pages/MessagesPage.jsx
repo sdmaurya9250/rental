@@ -71,7 +71,10 @@ export default function MessagesPage() {
         if (!active) return;
         const items = listFrom(result, 'conversations');
         setConversations(items);
-        setSelectedUserId((selected) => selected || (items[0] ? conversationUserId(items[0]) : ''));
+        setSelectedUserId((selected) => {
+          if (selected || !items[0]) return selected;
+          return window.matchMedia('(min-width: 768px)').matches ? conversationUserId(items[0]) : '';
+        });
       })
       .catch((requestError) => { if (active) setError(requestError.message || 'Unable to load conversations.'); })
       .finally(() => { if (active) setLoadingInbox(false); });
@@ -136,7 +139,7 @@ export default function MessagesPage() {
     return (
       <FeaturePage title="Messages" subtitle="Finders and RentCoPartner can chat here.">
         <p className="text-sm text-amber-700">
-          {error} <Link to="/login" className="font-semibold underline">Sign in</Link>
+          {error} <Link to="/?auth=login" className="font-semibold underline">Sign in</Link>
         </p>
       </FeaturePage>
     );
@@ -207,6 +210,9 @@ export default function MessagesPage() {
                       <img
                         src={personImage(participant) || `https://i.pravatar.cc/100?u=${encodeURIComponent(userId || name)}`}
                         alt={name}
+                        width="44"
+                        height="44"
+                        loading="lazy"
                         className="h-11 w-11 rounded-full object-cover"
                       />
                       <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
@@ -248,6 +254,9 @@ export default function MessagesPage() {
                     <img
                       src={partnerImage || 'https://i.pravatar.cc/100?img=1'}
                       alt={partnerName}
+                      width="40"
+                      height="40"
+                      loading="lazy"
                       className="h-10 w-10 rounded-full object-cover"
                     />
                     <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
@@ -305,6 +314,9 @@ export default function MessagesPage() {
                           <img
                             src={senderImage || `https://i.pravatar.cc/100?u=${encodeURIComponent(senderId || selectedUserId)}`}
                             alt={senderName}
+                            width="28"
+                            height="28"
+                            loading="lazy"
                             className="h-7 w-7 rounded-full object-cover"
                           />
                         )}
@@ -333,6 +345,9 @@ export default function MessagesPage() {
                           <img
                             src={senderImage || `https://i.pravatar.cc/100?u=${encodeURIComponent(currentUserId)}`}
                             alt={senderName}
+                            width="28"
+                            height="28"
+                            loading="lazy"
                             className="h-7 w-7 rounded-full object-cover"
                           />
                         )}

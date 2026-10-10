@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Phone, Mail, Lock, Eye, EyeOff, MapPin, Hash, Search, UserPlus, Users, Loader2 } from 'lucide-react';
+import { X, Phone, Mail, Lock, Eye, EyeOff, MapPin, Hash, Search, UserPlus, Loader2 } from 'lucide-react';
 import {
   sendLoginOtp,
   verifyLoginOtp,
@@ -143,7 +143,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
       setLoading(true);
       // Keys and values here must match RegisterRequest exactly:
       // country, city, pincode, gender ('Male'|'Female'|'Other'),
-      // want_to ('Find a RentPeople'|'Become a RentPeople'|'Both'),
+      // want_to ('finder'|'companion'),
       // mobile, email, password
       const data = await registerUser({
         country,
@@ -216,8 +216,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
             <X className="w-6 h-6" />
           </button>
 
-          <BrandLogo dark compact onClick={onClose} className="mb-3" />
-          <h2 className="text-2xl font-bold tracking-tight">{mode === 'register' ? 'Create your account' : 'Welcome back'}</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Welcome to RentCoPartner</h2>
         </div>
 
         {/* Modal Body */}
@@ -395,7 +394,7 @@ export default function AuthModal({ isOpen, onClose, onLogin, initialMode = 'log
 
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-700">I want to <span className="text-red-500">*</span></label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {INTENT_OPTIONS.map((option) => {
                     const Icon = option.icon;
                     const selected = accountIntent === option.value;

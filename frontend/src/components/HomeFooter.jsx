@@ -91,7 +91,7 @@ export default function HomeFooter() {
     <footer className="z-10 w-full border-t border-violet-100/60 bg-white">
       <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-6 py-10 md:grid-cols-5">
         <div className="col-span-2 md:col-span-1">
-          <BrandLogo className="mb-3 gap-2" compact />
+          <BrandLogo className="mb-3 gap-2" />
           <p className="max-w-xs text-xs leading-relaxed text-gray-500">Find trusted companions for every occasion, or join and earn on your own terms.</p>
         </div>
 
@@ -99,7 +99,7 @@ export default function HomeFooter() {
           <h5 className="mb-3 text-xs font-bold uppercase tracking-wider text-[#16132a]">Quick Links</h5>
           <ul className="space-y-2 text-xs text-gray-500">
             <li><Link to="/" className="transition hover:text-violet-600">Home</Link></li>
-            <li><Link to="/browse" className="transition hover:text-violet-600">Browse</Link></li>
+            <li><Link to="/contact" className="transition hover:text-violet-600">Contact Us</Link></li>
             <li><a href={sectionHref('why-join')} className="transition hover:text-violet-600">Why Join</a></li>
             <li><a href={sectionHref('how-it-works')} className="transition hover:text-violet-600">How It Works</a></li>
           </ul>

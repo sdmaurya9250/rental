@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { BriefcaseBusiness, CalendarDays, Clock3, MapPin, ClipboardList, MessageSquareText } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { verifyBookingOtp } from '../auth/auth';
 
 function formatDate(date) {
@@ -18,6 +20,8 @@ export default function AppointmentDetails({ booking, currentUser, onVerify }) {
   const providerId = String(booking.rent_person_id || booking.provider_id || '');
   const direction = String(booking.direction || booking.booking_direction || '').toLowerCase();
   const isProvider = ['incoming', 'received', 'provider'].includes(direction) || Boolean(userId && providerId && userId === providerId);
+  const accountRole = String(currentUser?.want_to || currentUser?.wantTo || currentUser?.accountIntent || '').trim().toLowerCase();
+  const isCompanion = accountRole === 'companion';
 
   async function submitVerification(event) {
     event.preventDefault();
@@ -48,15 +52,36 @@ export default function AppointmentDetails({ booking, currentUser, onVerify }) {
   }
 
   return <section className="mt-3 rounded-xl bg-violet-50/70 p-4 text-sm text-[#5d586e]">
+
+      {isProvider && isCompanion && booking.customer_id && (
+        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-violet-100 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-[#24202e]">
+              Finder profile
+            </h3>
+            <p className="mt-1 text-xs text-[#706a80]">
+              View their photos, about section, languages, and role.
+            </p>
+          </div>
+
+          <Link
+            to={`/finders/${encodeURIComponent(booking.customer_id)}`}
+            className="inline-flex shrink-0 items-center justify-center self-start rounded-lg bg-violet-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-violet-700 sm:self-center"
+          >
+            View Finder Profile
+          </Link>
+        </div>
+      )}
+
     <div className="grid gap-3 sm:grid-cols-2">
-      <p><strong className="text-[#24202e]">Service:</strong> {booking.service_name || booking.service?.name || 'Appointment'}</p>
-      <p><strong className="text-[#24202e]">Date:</strong> {formatDate(booking.booking_date)}</p>
-      <p><strong className="text-[#24202e]">Time:</strong> {booking.start_time || 'TBD'}–{booking.end_time || 'TBD'} ({booking.timezone || 'Local time'})</p>
-      <p><strong className="text-[#24202e]">Meeting:</strong> {booking.location_type === 'online' ? 'Online' : booking.location || 'Location not set'}</p>
-      {booking.special_requirements && <p><strong className="text-[#24202e]">Requirements:</strong> {booking.special_requirements}</p>}
-      {booking.customer_note && <p><strong className="text-[#24202e]">Note:</strong> {booking.customer_note}</p>}
-      {booking.rejection_message && <p className="text-red-700"><strong>Message:</strong> {booking.rejection_message}</p>}
-      {booking.cancellation_message && <p className="text-red-700"><strong>Cancellation:</strong> {booking.cancellation_message}</p>}
+      <p className="flex items-center gap-2"><BriefcaseBusiness aria-hidden="true" className="h-4 w-4 shrink-0 text-violet-600" /><span><strong className="text-[#24202e]">Service:</strong> {booking.service_name || booking.service?.name || 'Appointment'}</span></p>
+      <p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="h-4 w-4 shrink-0 text-violet-600" /><span><strong className="text-[#24202e]">Date:</strong> {formatDate(booking.booking_date)}</span></p>
+      <p className="flex items-center gap-2"><Clock3 aria-hidden="true" className="h-4 w-4 shrink-0 text-violet-600" /><span><strong className="text-[#24202e]">Time:</strong> {booking.start_time || 'TBD'}–{booking.end_time || 'TBD'} ({booking.timezone || 'Local time'})</span></p>
+      <p className="flex items-center gap-2"><MapPin aria-hidden="true" className="h-4 w-4 shrink-0 text-violet-600" /><span><strong className="text-[#24202e]">Meeting:</strong> {booking.location_type === 'online' ? 'Online' : booking.location || 'Location not set'}</span></p>
+      {booking.special_requirements && <p className="flex items-center gap-2"><ClipboardList aria-hidden="true" className="h-4 w-4 shrink-0 text-violet-600" /><span><strong className="text-[#24202e]">Requirements:</strong> {booking.special_requirements}</span></p>}
+      {booking.customer_note && <p className="flex items-center gap-2"><MessageSquareText aria-hidden="true" className="h-4 w-4 shrink-0 text-violet-600" /><span><strong className="text-[#24202e]">Note:</strong> {booking.customer_note}</span></p>}
+      {booking.rejection_message && <p className="flex items-center gap-2 text-red-700"><MessageSquareText aria-hidden="true" className="h-4 w-4 shrink-0" /><span><strong>Message:</strong> {booking.rejection_message}</span></p>}
+      {booking.cancellation_message && <p className="flex items-center gap-2 text-red-700"><MessageSquareText aria-hidden="true" className="h-4 w-4 shrink-0" /><span><strong>Cancellation:</strong> {booking.cancellation_message}</span></p>}
     </div>
 
     {isApproved && <div className="mt-4 border-t border-violet-100 pt-4">
