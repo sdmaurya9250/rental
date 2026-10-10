@@ -69,8 +69,12 @@ export async function reverseGeocode({ lat, lng }) {
   return response.json();
 }
 
-export async function geocodeCity(query) {
+export async function geocodeCity(query, proximity) {
   const params = new URLSearchParams({ q: query });
+  if (proximity?.lat != null && proximity?.lng != null) {
+    params.set('lat', String(proximity.lat));
+    params.set('lng', String(proximity.lng));
+  }
   const response = await fetch(`${API_ROOT_URL}/geo/geocode?${params}`);
   if (!response.ok) throw new Error(`City search failed (HTTP ${response.status}).`);
   const result = await response.json();

@@ -14,13 +14,14 @@ import {
   ChevronLeft, 
   ChevronRight,
   Plus,
+  LoaderCircle,
   Wallet,
   X
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import FeaturePage from '../components/FeaturePage';
 import { getStoredUser, isAuthenticated } from '../auth/auth';
-import { addFavoriteRecord, checkFavoriteRecord, createBookingRecord, fetchPersonRatings, formatPersonPrice as formatPrice, fetchPersonById, getPersonPrice, removeFavoriteRecord } from './finderApi';
+import { addFavoriteRecord, checkFavoriteRecord, createBookingRecord, fetchPersonRatings, formatPersonPrice as formatPrice, fetchPersonById, geocodeCity, getCurrentLocation, getPersonPrice, removeFavoriteRecord } from './finderApi';
 
 function localDate() {
   const now = new Date();
@@ -122,6 +123,17 @@ function ProfileDetails({ person }) {
   const [bookingDate, setBookingDate] = useState(localDate);
   const [durationHoursSelected, setDurationHoursSelected] = useState(1);
   const [location, setLocation] = useState(person.location || '');
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [addressSearchLoading, setAddressSearchLoading] = useState(false);
+  const [showAddressSuggestions, setShowAddressSuggestions] = useState(false);
+  const [addressSearchError, setAddressSearchError] = useState('');
+  const [addressProximity, setAddressProximity] = useState(() => {
+    const lat = signedInUser.lat == null ? NaN : Number(signedInUser.lat);
+    const lng = signedInUser.lng == null ? NaN : Number(signedInUser.lng);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  });
+  const [requestedAddressLocation, setRequestedAddressLocation] = useState(false);
+  const [addressLocationLoading, setAddressLocationLoading] = useState(false);
   const [specialRequirements, setSpecialRequirements] = useState('');
   const [customerNote, setCustomerNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -135,6 +147,45 @@ function ProfileDetails({ person }) {
   const [favoriteError, setFavoriteError] = useState('');
   const viewerId = signedInUser.id || signedInUser.user_id || signedInUser.userId;
   const canFavorite = isAuthenticated() && !isBecomeOnly && String(viewerId || '') !== String(person.id);
+
+  useEffect(() => {
+    const query = location.trim();
+    if (!showAddressSuggestions || query.length < 2) {
+      setAddressSuggestions([]);
+      setAddressSearchLoading(false);
+      return undefined;
+    }
+    if (!addressProximity && addressLocationLoading) {
+      setAddressSearchLoading(true);
+      return undefined;
+    }
+
+    let active = true;
+    setAddressSearchLoading(true);
+    setAddressSearchError('');
+    const timer = window.setTimeout(() => {
+      geocodeCity(query, addressProximity)
+        .then((results) => { if (active) setAddressSuggestions(results); })
+        .catch((error) => { if (active) setAddressSearchError(error.message || 'Unable to load address suggestions.'); })
+        .finally(() => { if (active) setAddressSearchLoading(false); });
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [location, showAddressSuggestions, addressProximity, addressLocationLoading]);
+
+  function openAddressSuggestions() {
+    setShowAddressSuggestions(true);
+    if (addressProximity || requestedAddressLocation) return;
+    setRequestedAddressLocation(true);
+    setAddressLocationLoading(true);
+    getCurrentLocation()
+      .then(setAddressProximity)
+      .catch(() => {})
+      .finally(() => setAddressLocationLoading(false));
+  }
 
   useEffect(() => {
     let active = true;
@@ -589,9 +640,42 @@ function ProfileDetails({ person }) {
                 </label>
               </div>
 
-              <label className="block text-xs font-semibold text-gray-700">Address
-                <input required value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Enter address or venue" className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-xs font-normal focus:ring-2 focus:ring-purple-500 outline-none" />
-              </label>
+              <div className="relative">
+                <label htmlFor="booking-address" className="block text-xs font-semibold text-gray-700">Address</label>
+                <input
+                  id="booking-address"
+                  required
+                  autoComplete="street-address"
+                  value={location}
+                  onFocus={openAddressSuggestions}
+                  onChange={(event) => { setLocation(event.target.value); setShowAddressSuggestions(true); }}
+                  placeholder="Search for an address or venue"
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-xs font-normal outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                {showAddressSuggestions && location.trim().length >= 2 && (
+                  <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-purple-100 bg-white shadow-lg" role="listbox" aria-label="Address suggestions">
+                    {addressSearchLoading ? (
+                      <p className="flex items-center gap-2 px-3 py-3 text-xs text-gray-500"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />{addressLocationLoading ? 'Finding nearby places…' : 'Searching nearby places…'}</p>
+                    ) : addressSearchError ? (
+                      <p role="status" className="px-3 py-3 text-xs text-gray-500">Suggestions are unavailable. You can enter the address manually.</p>
+                    ) : addressSuggestions.length ? addressSuggestions.map((suggestion, index) => (
+                      <button
+                        key={`${suggestion.name || suggestion.city}-${index}`}
+                        type="button"
+                        role="option"
+                        aria-selected="false"
+                        onClick={() => { setLocation(suggestion.name || suggestion.city || ''); setShowAddressSuggestions(false); setAddressSuggestions([]); }}
+                        className="flex w-full items-start gap-2.5 border-b border-gray-100 px-3 py-2.5 text-left last:border-0 hover:bg-purple-50"
+                      >
+                        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-purple-600" />
+                        <span className="text-xs font-medium text-gray-700">{suggestion.name || suggestion.city}</span>
+                      </button>
+                    )) : (
+                      <p className="px-3 py-3 text-xs text-gray-500">No matching places. You can enter the address manually.</p>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <label className="block text-xs font-semibold text-gray-700">Special requirements
                 <textarea rows="2" value={specialRequirements} onChange={(event) => setSpecialRequirements(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-xs font-normal focus:ring-2 focus:ring-purple-500 outline-none" placeholder="Anything the RentCoPartner should know before meeting?" />
