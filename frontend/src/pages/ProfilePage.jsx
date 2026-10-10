@@ -13,12 +13,15 @@ import {
   ShieldCheck, 
   ChevronLeft, 
   ChevronRight,
-  Plus
+  Plus,
+  LoaderCircle,
+  Wallet,
+  X
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import FeaturePage from '../components/FeaturePage';
 import { getStoredUser, isAuthenticated } from '../auth/auth';
-import { createBookingRecord, formatPersonPrice as formatPrice, fetchPersonById, getPersonPrice } from './finderApi';
+import { addFavoriteRecord, checkFavoriteRecord, createBookingRecord, fetchPersonRatings, formatPersonPrice as formatPrice, fetchPersonById, geocodeCity, getCurrentLocation, getPersonPrice, removeFavoriteRecord } from './finderApi';
 
 function localDate() {
   const now = new Date();
@@ -77,7 +80,7 @@ export default function ProfilePage() {
 function ProfileDetails({ person }) {
   const signedInUser = getStoredUser() || {};
   const signedInRole = String(signedInUser.want_to || signedInUser.wantTo || signedInUser.accountIntent || '').trim().toLowerCase();
-  const isBecomeOnly = ['become a rentpeople', 'become a rentcopartner', 'become'].includes(signedInRole);
+  const isBecomeOnly = signedInRole === 'companion';
   const services = useMemo(() => (person.services || [
     { 
       title: 'Movie Partner', 
@@ -120,12 +123,93 @@ function ProfileDetails({ person }) {
   const [bookingDate, setBookingDate] = useState(localDate);
   const [durationHoursSelected, setDurationHoursSelected] = useState(1);
   const [location, setLocation] = useState(person.location || '');
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [addressSearchLoading, setAddressSearchLoading] = useState(false);
+  const [showAddressSuggestions, setShowAddressSuggestions] = useState(false);
+  const [addressSearchError, setAddressSearchError] = useState('');
+  const [addressProximity, setAddressProximity] = useState(() => {
+    const lat = signedInUser.lat == null ? NaN : Number(signedInUser.lat);
+    const lng = signedInUser.lng == null ? NaN : Number(signedInUser.lng);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  });
+  const [requestedAddressLocation, setRequestedAddressLocation] = useState(false);
+  const [addressLocationLoading, setAddressLocationLoading] = useState(false);
   const [specialRequirements, setSpecialRequirements] = useState('');
   const [customerNote, setCustomerNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [bookingError, setBookingError] = useState('');
+  const [insufficientBalance, setInsufficientBalance] = useState(null);
   const [createdBooking, setCreatedBooking] = useState(null);
   const [showBookingForm, setShowBookingForm] = useState(false);
+  const [ratingSummary, setRatingSummary] = useState(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [favoriteError, setFavoriteError] = useState('');
+  const viewerId = signedInUser.id || signedInUser.user_id || signedInUser.userId;
+  const canFavorite = isAuthenticated() && !isBecomeOnly && String(viewerId || '') !== String(person.id);
+
+  useEffect(() => {
+    const query = location.trim();
+    if (!showAddressSuggestions || query.length < 2) {
+      setAddressSuggestions([]);
+      setAddressSearchLoading(false);
+      return undefined;
+    }
+    if (!addressProximity && addressLocationLoading) {
+      setAddressSearchLoading(true);
+      return undefined;
+    }
+
+    let active = true;
+    setAddressSearchLoading(true);
+    setAddressSearchError('');
+    const timer = window.setTimeout(() => {
+      geocodeCity(query, addressProximity)
+        .then((results) => { if (active) setAddressSuggestions(results); })
+        .catch((error) => { if (active) setAddressSearchError(error.message || 'Unable to load address suggestions.'); })
+        .finally(() => { if (active) setAddressSearchLoading(false); });
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [location, showAddressSuggestions, addressProximity, addressLocationLoading]);
+
+  function openAddressSuggestions() {
+    setShowAddressSuggestions(true);
+    if (addressProximity || requestedAddressLocation) return;
+    setRequestedAddressLocation(true);
+    setAddressLocationLoading(true);
+    getCurrentLocation()
+      .then(setAddressProximity)
+      .catch(() => {})
+      .finally(() => setAddressLocationLoading(false));
+  }
+
+  useEffect(() => {
+    let active = true;
+    setRatingSummary(null);
+    fetchPersonRatings(person.id)
+      .then((result) => { if (active) setRatingSummary(result); })
+      .catch(() => { if (active) setRatingSummary({ rating_count: person.rating_count || person.ratingCount || person.reviewsCount || 0, rating_avg: person.rating_avg || person.rating || 0 }); });
+    return () => { active = false; };
+  }, [person.id, person.rating_count, person.ratingCount, person.reviewsCount, person.rating_avg, person.rating]);
+
+  const reviewCount = Number(ratingSummary?.rating_count ?? person.rating_count ?? person.ratingCount ?? person.reviewsCount ?? 0);
+  const averageRating = Number(ratingSummary?.rating_avg ?? person.rating_avg ?? person.rating ?? 0);
+
+  useEffect(() => {
+    setIsFavorite(false);
+    if (!canFavorite || !person.id) return undefined;
+    let active = true;
+    setFavoriteLoading(true);
+    checkFavoriteRecord(person.id)
+      .then((result) => { if (active) setIsFavorite(Boolean(result?.is_favorite)); })
+      .catch(() => {})
+      .finally(() => { if (active) setFavoriteLoading(false); });
+    return () => { active = false; };
+  }, [canFavorite, person.id]);
 
   const selectedService = services.find((service) => service.id === selectedServiceId) || services[0];
   const durationMinutes = durationHoursSelected * 60;
@@ -146,6 +230,25 @@ function ProfileDetails({ person }) {
   const handleNextImage = () => {
     setActiveImageIndex((prev) => (prev === galleryImages.length - 1 ? 0 : prev + 1));
   };
+
+  async function toggleFavorite() {
+    if (!canFavorite || favoriteLoading) return;
+    setFavoriteLoading(true);
+    setFavoriteError('');
+    try {
+      if (isFavorite) {
+        await removeFavoriteRecord(person.id);
+        setIsFavorite(false);
+      } else {
+        await addFavoriteRecord(person.id);
+        setIsFavorite(true);
+      }
+    } catch (error) {
+      setFavoriteError(error.message || 'Unable to update favorites.');
+    } finally {
+      setFavoriteLoading(false);
+    }
+  }
 
   async function submitBooking(event) {
     event.preventDefault();
@@ -185,7 +288,11 @@ function ProfileDetails({ person }) {
       });
       setCreatedBooking(booking);
     } catch (error) {
-      setBookingError(error.message || 'Unable to submit this booking. Please try again.');
+      if (error.code === 'INSUFFICIENT_BALANCE' || error.data?.code === 'INSUFFICIENT_BALANCE') {
+        setInsufficientBalance(error.data || error);
+      } else {
+        setBookingError(error.message || 'Unable to submit this booking. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -209,7 +316,7 @@ function ProfileDetails({ person }) {
           <div className="lg:col-span-3 space-y-4">
             {/* Image Carousel Card */}
             <div className="relative rounded-2xl overflow-hidden bg-black aspect-square group shadow-sm">
-              <img src={activeImage} alt={person.name} className="w-full h-full object-cover" />
+              <img src={activeImage} alt={`${person.name} profile photo`} width="600" height="600" loading="lazy" className="w-full h-full object-cover" />
               
               {person.isOnline !== false && (
                 <span className="absolute top-3 left-3 bg-emerald-500/90 text-white text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1 backdrop-blur-sm">
@@ -217,9 +324,9 @@ function ProfileDetails({ person }) {
                 </span>
               )}
 
-              <button className="absolute top-3 right-3 p-2 rounded-full bg-white/80 text-gray-700 hover:text-rose-500 hover:bg-white transition shadow-sm">
-                <Heart className="w-4 h-4 fill-current" />
-              </button>
+              {canFavorite && <button type="button" onClick={toggleFavorite} disabled={favoriteLoading} aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={isFavorite} className="absolute top-3 right-3 p-2 rounded-full bg-white/80 text-gray-700 hover:text-rose-500 hover:bg-white transition shadow-sm disabled:opacity-60">
+                <Heart className={`w-4 h-4 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`} />
+              </button>}
 
               <button onClick={handlePrevImage} className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/60 transition">
                 <ChevronLeft className="w-5 h-5" />
@@ -240,7 +347,7 @@ function ProfileDetails({ person }) {
                     activeImageIndex === idx ? 'border-purple-600' : 'border-transparent opacity-70 hover:opacity-100'
                   }`}
                 >
-                  <img src={img} alt="" className="w-full h-full object-cover" />
+                  <img src={img} alt={`${person.name} photo ${idx + 1}`} width="120" height="120" loading="lazy" className="w-full h-full object-cover" />
                   {idx === 4 && galleryImages.length > 5 && (
                     <div className="absolute inset-0 bg-black/60 text-white text-xs font-bold flex items-center justify-center">
                       +{galleryImages.length - 4}
@@ -254,9 +361,9 @@ function ProfileDetails({ person }) {
             <div className="bg-white rounded-2xl p-4 shadow-sm border border-purple-50 grid grid-cols-3 gap-2 text-center">
               <div>
                 <div className="flex items-center justify-center gap-1 text-amber-500 font-bold text-sm">
-                  <Star className="w-4 h-4 fill-amber-400" /> {person.rating || '4.8'}
+                  <Star className="w-4 h-4 fill-amber-400" /> {reviewCount ? averageRating.toFixed(1) : 'New'}
                 </div>
-                <p className="text-[10px] text-gray-500 mt-0.5">({person.reviewsCount || 120} reviews)</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{reviewCount ? `(${reviewCount} reviews)` : 'No reviews yet'}</p>
               </div>
               <div className="border-x border-gray-100">
                 <div className="flex items-center justify-center gap-1 text-purple-600 font-bold text-sm">
@@ -277,9 +384,10 @@ function ProfileDetails({ person }) {
               {/* <button className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium text-sm rounded-xl shadow-md shadow-purple-200 transition flex items-center justify-center gap-2">
                 <MessageSquare className="w-4 h-4" /> Send Message
               </button> */}
-              <button className="w-full py-2.5 border border-purple-200 text-purple-700 hover:bg-purple-50 font-medium text-sm rounded-xl transition flex items-center justify-center gap-2">
-                <Heart className="w-4 h-4" /> Add to Favorites
-              </button>
+              {canFavorite && <button type="button" onClick={toggleFavorite} disabled={favoriteLoading} aria-pressed={isFavorite} className="w-full py-2.5 border border-purple-200 text-purple-700 hover:bg-purple-50 font-medium text-sm rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-60">
+                <Heart className={`w-4 h-4 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}`} /> {favoriteLoading ? 'Updating…' : isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+              </button>}
+              {favoriteError && <p role="alert" className="text-xs text-rose-600">{favoriteError}</p>}
             </div>
           </div>
 
@@ -330,7 +438,7 @@ function ProfileDetails({ person }) {
                 <div className="p-2 rounded-lg bg-white text-purple-600 shadow-xs"><Briefcase className="w-4 h-4" /></div>
                 <div>
                   <p className="text-[10px] text-gray-400 font-medium">Role</p>
-                  <p className="text-xs font-semibold text-gray-700">{person.want_to || 'Become a RentCoPartner'}</p>
+                  <p className="text-xs font-semibold text-gray-700">{String(person.want_to || '').toLowerCase() === 'companion' ? 'Become a Partner' : 'Find a Partner'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -389,14 +497,14 @@ function ProfileDetails({ person }) {
             </div>
 
             {/* Reviews Breakdown Card */}
-            <div className="bg-white rounded-2xl p-4 shadow-sm border border-purple-50 space-y-4">
+            {reviewCount > 0 && <div className="bg-white rounded-2xl p-4 shadow-sm border border-purple-50 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-gray-900">Reviews ({person.reviewsCount || 120})</h3>
+                <h3 className="text-sm font-bold text-gray-900">Reviews ({reviewCount})</h3>
                 <Link to="#reviews" className="text-xs text-purple-600 font-semibold hover:underline">View all →</Link>
               </div>
 
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black text-gray-900">{person.rating || '4.8'}</span>
+                <span className="text-2xl font-black text-gray-900">{averageRating.toFixed(1)}</span>
                 <span className="text-xs text-gray-400">/5</span>
                 <div className="flex text-amber-400 text-xs ml-1">
                   {'★'.repeat(5)}
@@ -421,7 +529,7 @@ function ProfileDetails({ person }) {
                   </div>
                 ))}
               </div>
-            </div>
+            </div>}
           </div>
         </div>
 
@@ -532,9 +640,42 @@ function ProfileDetails({ person }) {
                 </label>
               </div>
 
-              <label className="block text-xs font-semibold text-gray-700">Address
-                <input required value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Enter address or venue" className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-xs font-normal focus:ring-2 focus:ring-purple-500 outline-none" />
-              </label>
+              <div className="relative">
+                <label htmlFor="booking-address" className="block text-xs font-semibold text-gray-700">Address</label>
+                <input
+                  id="booking-address"
+                  required
+                  autoComplete="street-address"
+                  value={location}
+                  onFocus={openAddressSuggestions}
+                  onChange={(event) => { setLocation(event.target.value); setShowAddressSuggestions(true); }}
+                  placeholder="Search for an address or venue"
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-xs font-normal outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                {showAddressSuggestions && location.trim().length >= 2 && (
+                  <div className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-purple-100 bg-white shadow-lg" role="listbox" aria-label="Address suggestions">
+                    {addressSearchLoading ? (
+                      <p className="flex items-center gap-2 px-3 py-3 text-xs text-gray-500"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />{addressLocationLoading ? 'Finding nearby places…' : 'Searching nearby places…'}</p>
+                    ) : addressSearchError ? (
+                      <p role="status" className="px-3 py-3 text-xs text-gray-500">Suggestions are unavailable. You can enter the address manually.</p>
+                    ) : addressSuggestions.length ? addressSuggestions.map((suggestion, index) => (
+                      <button
+                        key={`${suggestion.name || suggestion.city}-${index}`}
+                        type="button"
+                        role="option"
+                        aria-selected="false"
+                        onClick={() => { setLocation(suggestion.name || suggestion.city || ''); setShowAddressSuggestions(false); setAddressSuggestions([]); }}
+                        className="flex w-full items-start gap-2.5 border-b border-gray-100 px-3 py-2.5 text-left last:border-0 hover:bg-purple-50"
+                      >
+                        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-purple-600" />
+                        <span className="text-xs font-medium text-gray-700">{suggestion.name || suggestion.city}</span>
+                      </button>
+                    )) : (
+                      <p className="px-3 py-3 text-xs text-gray-500">No matching places. You can enter the address manually.</p>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <label className="block text-xs font-semibold text-gray-700">Special requirements
                 <textarea rows="2" value={specialRequirements} onChange={(event) => setSpecialRequirements(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-xs font-normal focus:ring-2 focus:ring-purple-500 outline-none" placeholder="Anything the RentCoPartner should know before meeting?" />
@@ -557,7 +698,7 @@ function ProfileDetails({ person }) {
                 <p className="text-[10px] text-gray-400">Payment remains pending; this form does not charge a payment method.</p>
               </div>
 
-              {!isAuthenticated() && <p className="text-xs text-amber-700">Please <Link className="font-semibold underline" to="/login">sign in</Link> to submit a booking.</p>}
+              {!isAuthenticated() && <p className="text-xs text-amber-700">Please <Link className="font-semibold underline" to="/?auth=login">sign in</Link> to submit a booking.</p>}
               {bookingError && <p role="alert" className="text-xs text-red-600">{bookingError}</p>}
               {createdBooking && <div role="status" className="rounded-xl bg-emerald-50 p-2.5 text-xs text-emerald-800">Booking request saved. Reference: <strong>{createdBooking.id}</strong><Link to="/bookings" className="mt-1 block font-semibold underline">View my bookings</Link></div>}
               
@@ -569,6 +710,32 @@ function ProfileDetails({ person }) {
         )}
 
       </div>
+
+      {insufficientBalance && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setInsufficientBalance(null); }}>
+          <section role="alertdialog" aria-modal="true" aria-labelledby="insufficient-balance-title" className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-violet-100 p-5">
+              <div className="flex items-center gap-3">
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-rose-50 text-rose-600"><Wallet className="h-5 w-5" /></span>
+                <div>
+                  <h2 id="insufficient-balance-title" className="text-lg font-bold text-slate-900">Insufficient wallet balance</h2>
+                  <p className="mt-1 text-xs text-slate-500">Add funds to your wallet to complete this booking.</p>
+                </div>
+              </div>
+              <button type="button" aria-label="Close" onClick={() => setInsufficientBalance(null)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-3 p-5">
+              <div className="flex justify-between text-sm"><span className="text-slate-500">Booking amount</span><strong className="text-slate-900">{formatPrice(Number(insufficientBalance.booking_amount) || totalAmount)}</strong></div>
+              <div className="flex justify-between text-sm"><span className="text-slate-500">Available balance</span><strong className="text-slate-900">{formatPrice(Number(insufficientBalance.available_balance) || 0)}</strong></div>
+              <div className="flex justify-between rounded-xl bg-rose-50 px-3 py-2.5 text-sm"><span className="font-semibold text-rose-700">Amount to add</span><strong className="text-rose-700">{formatPrice(Number(insufficientBalance.amount_needed) || Math.max(totalAmount - Number(insufficientBalance.available_balance || 0), 0))}</strong></div>
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setInsufficientBalance(null)} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Close</button>
+                <Link to="/wallet" onClick={() => setInsufficientBalance(null)} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-4 py-2.5 text-sm font-semibold text-white hover:from-violet-700 hover:to-fuchsia-600"><Wallet className="h-4 w-4" /> Add funds</Link>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

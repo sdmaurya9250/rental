@@ -9,7 +9,7 @@ import {
   Briefcase,
   Camera,
   Gamepad2,
-  MoreHorizontal, X, UserPlus, LogOut
+  MoreHorizontal, X, LogOut
 } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { getStoredUser, logout } from '../auth/auth';
@@ -41,23 +41,14 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
   const displayName = user?.fullName || user?.full_name || user?.name || user?.username || user?.email || 'My account';
   const profileImage = user?.image || user?.profile_image || user?.avatar_url || user?.photo || '';
   const role = String(user?.want_to || user?.wantTo || user?.accountIntent || '').trim().toLowerCase();
-  const isBecomeRole = role === 'become a rentpeople' || role === 'become';
-  const isFindRole = role === 'find a rentpeople' || role === 'find';
-  const isBothRole = role === 'both';
+  const isBecomeRole = role === 'companion';
   const roleCategories = [
-    { to: '/my-profile', label: 'Become', icon: UserPlus },
     { to: '/bookings', label: 'My bookings', icon: CalendarDays },
     { to: '/messages', label: 'Messages', icon: MessageCircle },
     { to: '/wallet', label: 'Wallet', icon: Wallet },
     { to: '/my-profile', label: 'My profile', icon: UserRound },
   ];
-  const categories = isBecomeRole
-    ? roleCategories
-    : isFindRole
-      ? allCategories
-      : isBothRole
-        ? [...allCategories, roleCategories[0]]
-        : allCategories;
+  const categories = isBecomeRole ? roleCategories : allCategories;
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -70,7 +61,7 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
   return (
     <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col overflow-y-auto border-r border-violet-950 bg-[#100d2b] p-4 text-white shadow-xl transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-60 lg:min-w-[240px] lg:shrink-0 lg:translate-x-0 lg:shadow-none xl:w-64 xl:min-w-[256px] ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="mb-5 flex items-center justify-between border-b border-white/10 px-1 pb-4">
-        <BrandLogo dark compact onClick={onNavigate} />
+        <BrandLogo dark onClick={onNavigate} />
         <button onClick={onNavigate} className="rounded-lg p-2 text-violet-100/70 hover:bg-white/10 lg:hidden" aria-label="Close menu"><X className="h-5 w-5" /></button>
       </div>
 
@@ -98,7 +89,7 @@ export default function Sidebar({ mobileOpen, onNavigate }) {
       </div>
       <div className="mt-auto flex items-center gap-3 border-t border-white/10 px-3.5 py-4 lg:hidden">
         <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-700 text-sm font-bold text-white">
-          {profileImage ? <img src={profileImage} alt="" className="h-full w-full object-cover" /> : displayName.charAt(0).toUpperCase()}
+          {profileImage ? <img src={profileImage} alt={`${displayName} profile`} width="36" height="36" className="h-full w-full object-cover" /> : displayName.charAt(0).toUpperCase()}
         </span>
         <span className="min-w-0 truncate text-sm font-semibold text-white">{displayName}</span>
       </div>

@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Heart, MapPin, ChevronDown } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { fetchPeople, formatPersonPrice, getLocationPreference, getPersonPrice } from './finderApi';
-import { getStoredUser } from '../auth/auth';
+import { addFavoriteRecord, fetchFavoritePeople, fetchPeople, formatPersonPrice, getLocationPreference, getPersonPrice, removeFavoriteRecord } from './finderApi';
+import { getStoredUser, isAuthenticated } from '../auth/auth';
 
 function distanceKm(from, person) {
   const rawLat = person.lat ?? person.latitude;
@@ -34,6 +34,7 @@ async function fetchNearbyDirectory(coordinates, city, userId) {
 export default function MainContent() {
   const [searchParams] = useSearchParams();
   const [favorites, setFavorites] = useState({});
+  const [favoriteBusy, setFavoriteBusy] = useState({});
   const [sortBy, setSortBy] = useState('Popular');
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +66,24 @@ export default function MainContent() {
     return () => { active = false; };
   }, [searchParams]);
 
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      setFavorites({});
+      return undefined;
+    }
+    let active = true;
+    fetchFavoritePeople()
+      .then((result) => {
+        const savedPeople = Array.isArray(result?.people) ? result.people : Array.isArray(result?.favorites) ? result.favorites : [];
+        if (active) setFavorites(Object.fromEntries(savedPeople.map((item) => {
+          const id = item.id ?? item.user_id ?? item.favorite_user_id ?? item.person_id ?? item.person?.id;
+          return [String(id), true];
+        }).filter(([id]) => id && id !== 'undefined')));
+      })
+      .catch(() => { if (active) setFavorites({}); });
+    return () => { active = false; };
+  }, []);
+
   const visiblePeople = useMemo(() => {
     const results = [...people];
     if (nearMe && sortBy === 'Popular') results.sort((a, b) => Number(a.distance_km ?? Infinity) - Number(b.distance_km ?? Infinity));
@@ -73,23 +92,37 @@ export default function MainContent() {
     return results;
   }, [people, sortBy, nearMe]);
 
-  const toggleFavorite = (id) => {
-    setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
+  const toggleFavorite = async (id) => {
+    if (!isAuthenticated() || favoriteBusy[id]) return;
+    setFavoriteBusy((current) => ({ ...current, [id]: true }));
+    try {
+      if (favorites[id]) {
+        await removeFavoriteRecord(id);
+        setFavorites((current) => ({ ...current, [id]: false }));
+      } else {
+        await addFavoriteRecord(id);
+        setFavorites((current) => ({ ...current, [id]: true }));
+      }
+    } catch {
+      // Keep the heart in sync with the saved server state.
+    } finally {
+      setFavoriteBusy((current) => ({ ...current, [id]: false }));
+    }
   };
 
   return (
     <main className="flex-1 overflow-y-auto bg-[#f5f3ff] p-4 text-[#171426] sm:p-6 xl:p-8">
       {/* Header Bar */}
-      {/* <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-[#171426] tracking-tight">
+          <h1 className="text-xl font-bold text-[#171426] sm:text-2xl">
             Find People for Your Moments
           </h1>
-          <p className="text-sm text-[#706a80] mt-1">
+          {/* <p className="text-sm text-[#706a80] mt-1">
             Browse verified people based on your interests.
-          </p>
+          </p> */}
         </div>
-      </div> */}
+      </div>
       {/* Profile Cards Grid */}
       {loading && <p role="status" className="py-12 text-center text-sm text-[#706a80]">Loading people…</p>}
       {!loading && loadError && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{loadError}</p>}
@@ -108,6 +141,9 @@ export default function MainContent() {
                 <img
                   src={person.image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop'}
                   alt={person.name}
+                  width="600"
+                  height="450"
+                  loading="lazy"
                   className="w-full h-full object-cover object-top group-hover:scale-105 transition duration-300"
                 />
                 
@@ -131,8 +167,12 @@ export default function MainContent() {
       </h3>
 
       <button
+        type="button"
         onClick={() => toggleFavorite(person.id)}
-        className="text-gray-400 hover:text-pink-500 transition p-1 flex-shrink-0"
+        disabled={!isAuthenticated() || favoriteBusy[person.id]}
+        aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
+        aria-pressed={Boolean(isFav)}
+        className="text-gray-400 hover:text-pink-500 transition p-1 flex-shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <Heart
           className={`w-4 h-4 ${

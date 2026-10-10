@@ -1,4 +1,4 @@
-import { approveBooking, createBooking, getConversationMessages, getConversations, getMyBookings, rejectBooking, sendMessage } from '../auth/auth';
+import { addFavorite, approveBooking, cancelBooking, checkFavorite, createBooking, getConversationMessages, getConversations, getFavoritePeople, getMyBookings, rejectBooking, removeFavorite, sendMessage } from '../auth/auth';
 
 const API_BASE_URL = 'https://rental-backend.kudoo-live.workers.dev/api/people';
 const API_ROOT_URL = 'https://rental-backend.kudoo-live.workers.dev/api';
@@ -69,8 +69,12 @@ export async function reverseGeocode({ lat, lng }) {
   return response.json();
 }
 
-export async function geocodeCity(query) {
+export async function geocodeCity(query, proximity) {
   const params = new URLSearchParams({ q: query });
+  if (proximity?.lat != null && proximity?.lng != null) {
+    params.set('lat', String(proximity.lat));
+    params.set('lng', String(proximity.lng));
+  }
   const response = await fetch(`${API_ROOT_URL}/geo/geocode?${params}`);
   if (!response.ok) throw new Error(`City search failed (HTTP ${response.status}).`);
   const result = await response.json();
@@ -84,6 +88,12 @@ export async function fetchPersonById(personId) {
     throw new Error('The profile could not be found.');
   }
   return person;
+}
+
+export async function fetchPersonRatings(personId) {
+  const response = await fetch(`${API_ROOT_URL}/people/${encodeURIComponent(personId)}/ratings`);
+  if (!response.ok) throw new Error(`Unable to load reviews (HTTP ${response.status}).`);
+  return response.json();
 }
 
 export function createBookingRecord(booking) {
@@ -100,6 +110,26 @@ export function approveBookingRecord(bookingId) {
 
 export function rejectBookingRecord(bookingId, message) {
   return rejectBooking(bookingId, message);
+}
+
+export function cancelBookingRecord(bookingId) {
+  return cancelBooking(bookingId);
+}
+
+export function fetchFavoritePeople() {
+  return getFavoritePeople();
+}
+
+export function checkFavoriteRecord(personId) {
+  return checkFavorite(personId);
+}
+
+export function addFavoriteRecord(personId) {
+  return addFavorite(personId);
+}
+
+export function removeFavoriteRecord(personId) {
+  return removeFavorite(personId);
 }
 
 export function fetchConversations() {

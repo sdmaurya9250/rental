@@ -53,7 +53,14 @@ async function request(endpoint, { method = 'GET', body, rawBody, contentType, a
 
   if (!response.ok) {
     const message = data?.message || data?.error || data?.detail || `Request failed (${response.status})`;
-    throw new Error(message);
+    const error = new Error(typeof message === 'string' ? message : `Request failed (${response.status})`);
+    const payload = data?.detail && typeof data.detail === 'object' ? data.detail : data;
+    error.data = payload;
+    error.code = payload?.code;
+    error.booking_amount = payload?.booking_amount;
+    error.available_balance = payload?.available_balance;
+    error.amount_needed = payload?.amount_needed;
+    throw error;
   }
 
   return data;
@@ -163,7 +170,7 @@ export async function logout() {
  * @param {string} payload.city
  * @param {string} payload.pincode
  * @param {string} payload.gender
- * @param {string} payload.accountIntent  'find' | 'become' | 'both'
+ * @param {string} payload.accountIntent  'finder' | 'companion'
  * @param {string} payload.phone
  * @param {string} payload.email
  * @param {string} payload.password
@@ -201,8 +208,26 @@ export async function checkPhoneAvailable(phone) {
 // ---------- Profile & bookings (bearer token required) ----------
 
 // The backend uses the bearer token to identify the logged-in user's profile.
+let profileRequest = null;
+
 export function getMyProfile() {
-  return request('/api/profile', { auth: true });
+  if (profileRequest) return profileRequest;
+
+  profileRequest = request('/api/profile', { auth: true })
+    .then((result) => {
+      const profile = result?.profile || result;
+      if (profile && typeof profile === 'object') {
+        const updatedUser = { ...(getStoredUser() || {}), ...profile };
+        localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event('rp-profile-updated'));
+      }
+      return result;
+    })
+    .finally(() => {
+      profileRequest = null;
+    });
+
+  return profileRequest;
 }
 
 // Profile save uses POST with the bearer token.
@@ -269,6 +294,29 @@ export function rejectBooking(bookingId, rejectionMessage = '') {
     body: rejectionMessage ? { rejection_message: rejectionMessage } : {},
     auth: true,
   });
+}
+
+export function cancelBooking(bookingId) {
+  return request(`/api/bookings/${encodeURIComponent(bookingId)}/cancel`, {
+    method: 'POST',
+    auth: true,
+  });
+}
+
+export function getFavoritePeople() {
+  return request('/api/favorites', { auth: true });
+}
+
+export function checkFavorite(favoriteUserId) {
+  return request(`/api/favorites/check/${encodeURIComponent(favoriteUserId)}`, { auth: true });
+}
+
+export function addFavorite(favoriteUserId) {
+  return request(`/api/favorites/${encodeURIComponent(favoriteUserId)}`, { method: 'POST', auth: true });
+}
+
+export function removeFavorite(favoriteUserId) {
+  return request(`/api/favorites/${encodeURIComponent(favoriteUserId)}`, { method: 'DELETE', auth: true });
 }
 
 export function getConversations() {

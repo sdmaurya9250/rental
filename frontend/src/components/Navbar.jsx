@@ -1,19 +1,12 @@
-import React from 'react';
 import { Search } from 'lucide-react';
+import BrandLogo from './BrandLogo';
 
 export default function Navbar({ activeTab = 'Browse', onTabChange }) {
   const navItems = ['Home', 'Browse', 'How It Works', 'About'];
 
   return (
     <nav className="w-full bg-[#0b0c10] border-b border-gray-800/80 px-6 py-4 flex items-center justify-between sticky top-0 z-30">
-      {/* Brand Logo */}
-      <div className="flex items-center space-x-2 cursor-pointer">
-        <div className="flex -space-x-1">
-          <span className="w-3.5 h-3.5 bg-pink-500 rounded-full inline-block"></span>
-          <span className="w-3.5 h-3.5 bg-purple-500 rounded-full inline-block"></span>
-        </div>
-        <span className="text-xl font-bold text-white tracking-tight">RentCoPartner</span>
-      </div>
+      <BrandLogo dark />
 
       {/* Navigation Links */}
       <div className="hidden md:flex items-center space-x-8 text-sm font-medium">
