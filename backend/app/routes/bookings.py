@@ -2170,10 +2170,18 @@ async def approve_booking(
         )
 
     otp = _generate_otp()
+    # await db.prepare(
+    #     """
+    #     UPDATE bookings
+    #     SET status = ?, otp = ?, otp_verified = 0
+    #     WHERE id = ?
+    #     """
+    # ).bind("approved", otp, booking_id).run()
+
     await db.prepare(
         """
         UPDATE bookings
-        SET status = ?, otp = ?, otp_verified = 0
+        SET status = ?, otp = ?, otp_verified = 0, responded_at = CURRENT_TIMESTAMP
         WHERE id = ?
         """
     ).bind("approved", otp, booking_id).run()
@@ -2328,10 +2336,19 @@ async def reject_booking(
 
     msg = (data.rejection_message or "").strip()
 
+    # await db.prepare(
+    #     """
+    #     UPDATE bookings
+    #     SET status = ?, rejection_message = ?, payment_status = ?
+    #     WHERE id = ?
+    #     """
+    # ).bind("rejected", msg, "refunded", booking_id).run()
+
     await db.prepare(
         """
         UPDATE bookings
-        SET status = ?, rejection_message = ?, payment_status = ?
+        SET status = ?, rejection_message = ?, payment_status = ?,
+            responded_at = CURRENT_TIMESTAMP
         WHERE id = ?
         """
     ).bind("rejected", msg, "refunded", booking_id).run()
