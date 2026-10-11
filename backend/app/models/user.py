@@ -296,7 +296,7 @@
 
 
 from pydantic import BaseModel, Field
-from typing import Literal, List, Optional
+from typing import Literal, List, Optional, Union
 
 
 class RegisterRequest(BaseModel):
@@ -368,6 +368,25 @@ class ServiceItem(BaseModel):
     duration: Optional[str] = None
 
 
+# class ProfileUpdate(BaseModel):
+#     fullName: Optional[str] = None
+#     name: Optional[str] = None
+#     phone: Optional[str] = None
+#     city: Optional[str] = None
+#     lat: Optional[float] = None
+#     lng: Optional[float] = None
+#     gender: Optional[str] = None
+#     price: Optional[int] = None
+#     bio: Optional[str] = None
+#     image: Optional[str] = None
+#     isAvailable: Optional[bool] = None
+#     availableTime: Optional[str] = None
+#     languages: Optional[str] = None
+#     interests: Optional[str] = None
+#     services: Optional[List[ServiceItem]] = None
+#     gallery: Optional[List[str]] = None
+
+
 class ProfileUpdate(BaseModel):
     fullName: Optional[str] = None
     name: Optional[str] = None
@@ -380,12 +399,11 @@ class ProfileUpdate(BaseModel):
     bio: Optional[str] = None
     image: Optional[str] = None
     isAvailable: Optional[bool] = None
-    availableTime: Optional[str] = None
-    languages: Optional[str] = None
-    interests: Optional[str] = None
+    availableTime: Optional[Union[str, dict, list]] = None
+    languages: Optional[Union[str, List[str]]] = None
+    interests: Optional[Union[str, List[str]]] = None
     services: Optional[List[ServiceItem]] = None
     gallery: Optional[List[str]] = None
-
 
 class BookingCreate(BaseModel):
     booking_date: str
