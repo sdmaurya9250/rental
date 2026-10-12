@@ -15,3 +15,4 @@ bucket_name = "rentpeople-images"
 [vars]
 CASHFREE_ENV = "sandbox"   # or "production"
 CASHFREE_API_VERSION = "2025-01-01"
+

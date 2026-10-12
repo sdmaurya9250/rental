@@ -43,6 +43,58 @@ def _cf_config(request: Request) -> dict:
         "mode": mode,
     }
 
+#
+# async def _http_json(
+#     method: str,
+#     url: str,
+#     headers: dict,
+#     body: dict | None = None,
+# ) -> tuple[int, dict]:
+#     """
+#     Prefer Workers fetch if present; else urllib.
+#     """
+#     payload = json.dumps(body).encode("utf-8") if body is not None else None
+#
+#     # Cloudflare Workers Python may expose fetch on global scope
+#     try:
+#         fetch = globals().get("fetch")
+#         if fetch is None:
+#             import builtins
+#             fetch = getattr(builtins, "fetch", None)
+#     except Exception:
+#         fetch = None
+#
+#     if fetch is not None:
+#         opts = {"method": method, "headers": headers}
+#         if payload is not None:
+#             opts["body"] = payload
+#         resp = await fetch(url, opts)
+#         text = await resp.text()
+#         code = getattr(resp, "status", None) or getattr(resp, "status_code", 200)
+#         try:
+#             data = json.loads(text) if text else {}
+#         except Exception:
+#             data = {"message": text}
+#         return int(code), data
+#
+#     # Fallback: urllib (local / some runtimes)
+#     import urllib.request
+#     import urllib.error
+#
+#     req = urllib.request.Request(url, data=payload, headers=headers, method=method)
+#     try:
+#         with urllib.request.urlopen(req, timeout=30) as resp:
+#             text = resp.read().decode("utf-8")
+#             return resp.status, (json.loads(text) if text else {})
+#     except urllib.error.HTTPError as e:
+#         text = e.read().decode("utf-8")
+#         try:
+#             data = json.loads(text) if text else {}
+#         except Exception:
+#             data = {"message": text}
+#         return int(e.code), data
+#     except Exception as e:
+#         raise HTTPException(status_code=502, detail=f"Cashfree request failed: {e}")
 
 async def _http_json(
     method: str,
@@ -51,37 +103,50 @@ async def _http_json(
     body: dict | None = None,
 ) -> tuple[int, dict]:
     """
-    Prefer Workers fetch if present; else urllib.
+    Cloudflare Workers: use js.fetch (urllib often fails with
+    'Remote end closed connection without response').
     """
-    payload = json.dumps(body).encode("utf-8") if body is not None else None
+    payload = json.dumps(body) if body is not None else None
 
-    # Cloudflare Workers Python may expose fetch on global scope
+    # --- Workers native fetch ---
     try:
-        fetch = globals().get("fetch")
-        if fetch is None:
-            import builtins
-            fetch = getattr(builtins, "fetch", None)
-    except Exception:
-        fetch = None
+        from js import fetch, Object
+        from pyodide.ffi import to_js
 
-    if fetch is not None:
-        opts = {"method": method, "headers": headers}
+        opts = {
+            "method": method,
+            "headers": headers,
+        }
         if payload is not None:
             opts["body"] = payload
-        resp = await fetch(url, opts)
+
+        resp = await fetch(url, to_js(opts, dict_converter=Object.fromEntries))
         text = await resp.text()
-        code = getattr(resp, "status", None) or getattr(resp, "status_code", 200)
+        code = int(resp.status)
         try:
             data = json.loads(text) if text else {}
         except Exception:
             data = {"message": text}
-        return int(code), data
+        return code, data
+    except ImportError:
+        pass
+    except Exception as e:
+        # fall through to urllib for local debug
+        last_err = e
+    else:
+        last_err = None
 
-    # Fallback: urllib (local / some runtimes)
+    # --- Local / non-Workers fallback ---
     import urllib.request
     import urllib.error
 
-    req = urllib.request.Request(url, data=payload, headers=headers, method=method)
+    data_bytes = payload.encode("utf-8") if payload is not None else None
+    req = urllib.request.Request(
+        url,
+        data=data_bytes,
+        headers=headers,
+        method=method,
+    )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             text = resp.read().decode("utf-8")
@@ -94,8 +159,11 @@ async def _http_json(
             data = {"message": text}
         return int(e.code), data
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Cashfree request failed: {e}")
-
+        msg = str(last_err or e)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Cashfree request failed: {msg}",
+        )
 
 async def _cf_request(
     request: Request,
@@ -105,13 +173,22 @@ async def _cf_request(
 ) -> dict:
     cfg = _cf_config(request)
     url = f"{cfg['base']}{path}"
+    # headers = {
+    #     "Content-Type": "application/json",
+    #     "Accept": "application/json",
+    #     "x-client-id": cfg["app_id"],
+    #     "x-client-secret": cfg["secret"],
+    #     "x-api-version": cfg["api_version"],
+    # }
+
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
         "x-client-id": cfg["app_id"],
         "x-client-secret": cfg["secret"],
-        "x-api-version": cfg["api_version"],
+        "x-api-version": cfg["api_version"],  # e.g. "2023-08-01" or "2025-01-01"
     }
+
     code, data = await _http_json(method, url, headers, body)
     if code >= 400:
         msg = data.get("message") if isinstance(data, dict) else str(data)
