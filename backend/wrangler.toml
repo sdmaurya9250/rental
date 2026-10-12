@@ -11,3 +11,8 @@ database_id = "a095aa1f-ccd9-46a1-ae7d-5bfa2f6841dc"
 [[r2_buckets]]
 binding = "IMAGES"
 bucket_name = "rentpeople-images"
+
+CASHFREE_APP_ID = "YOUR_CLIENT_ID"
+CASHFREE_SECRET_KEY = "YOUR_CLIENT_SECRET"
+CASHFREE_ENV = "sandbox"   # or "production"
+CASHFREE_API_VERSION = "2025-01-01"
