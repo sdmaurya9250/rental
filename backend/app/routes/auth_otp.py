@@ -74,7 +74,7 @@ async def _send_whatsapp_otp(request: Request, mobile: str, code: str):
             "type": "template",
             "template": {
                 "name": template,
-                "language": {"code": "en"},
+                "language": {"code": "en_US"},
                 "components": [
                     {
                         "type": "body",
