@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
-import secrets, hashlib, hmac, json, re
+import secrets
+import hashlib
+import hmac
+import re
 from datetime import datetime, timedelta
-from utils.security import create_access_token  # your existing helper
+from utils.security import create_access_token
 
 router = APIRouter()
 
@@ -20,7 +23,6 @@ class OtpVerifyRequest(BaseModel):
     mobile: str
     otp: str = Field(..., min_length=4, max_length=8)
     purpose: Literal["login", "signup"] = "login"
-    # signup fields
     fullName: Optional[str] = None
     name: Optional[str] = None
     email: Optional[str] = None
@@ -38,7 +40,6 @@ def _normalize_mobile(raw: str) -> str:
     if s.startswith("00"):
         s = "+" + s[2:]
     if not s.startswith("+"):
-        # default India if 10 digits
         digits = re.sub(r"\D", "", s)
         if len(digits) == 10:
             s = "+91" + digits
@@ -51,66 +52,128 @@ def _hash_otp(code: str, salt: str) -> str:
     return hashlib.sha256(f"{salt}:{code}".encode()).hexdigest()
 
 
+def _digits_only(mobile: str) -> str:
+    """Meta 'to' field: country code + number, no +."""
+    return re.sub(r"\D", "", mobile or "")
+
+
+async def _http_json(
+    method: str,
+    url: str,
+    headers: dict,
+    body: dict | None = None,
+) -> tuple[int, dict]:
+    """Workers fetch first; urllib fallback for local."""
+    import json as _json
+
+    payload = _json.dumps(body) if body is not None else None
+
+    try:
+        from js import fetch, Object
+        from pyodide.ffi import to_js
+
+        opts = {"method": method, "headers": headers}
+        if payload is not None:
+            opts["body"] = payload
+        resp = await fetch(url, to_js(opts, dict_converter=Object.fromEntries))
+        text = await resp.text()
+        code = int(resp.status)
+        try:
+            data = _json.loads(text) if text else {}
+        except Exception:
+            data = {"message": text}
+        return code, data
+    except Exception:
+        pass
+
+    import urllib.request
+    import urllib.error
+
+    data_bytes = payload.encode("utf-8") if payload else None
+    req = urllib.request.Request(url, data=data_bytes, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            text = resp.read().decode("utf-8")
+            return resp.status, (_json.loads(text) if text else {})
+    except urllib.error.HTTPError as e:
+        text = e.read().decode("utf-8")
+        try:
+            data = _json.loads(text) if text else {}
+        except Exception:
+            data = {"message": text}
+        return int(e.code), data
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"WhatsApp request failed: {e}")
+
+
 async def _send_whatsapp_otp(request: Request, mobile: str, code: str):
+    """
+    Template from WHATSAPP_OTP_TEMPLATE.
+    - hello_world (Meta default): language en_US, NO components
+    - real OTP template: language en_US (or WHATSAPP_OTP_LANG), body {{1}} = code
+    """
     env = request.scope["env"]
     token = (getattr(env, "WHATSAPP_TOKEN", None) or "").strip()
     phone_id = (getattr(env, "WHATSAPP_PHONE_NUMBER_ID", None) or "").strip()
-    template = (getattr(env, "WHATSAPP_OTP_TEMPLATE", None) or "").strip()
+    template = (getattr(env, "WHATSAPP_OTP_TEMPLATE", None) or "hello_world").strip()
+    lang = (getattr(env, "WHATSAPP_OTP_LANG", None) or "en_US").strip()
 
     if not token or not phone_id:
-        raise HTTPException(500, detail="WhatsApp not configured")
+        raise HTTPException(status_code=500, detail="WhatsApp not configured")
 
     url = f"https://graph.facebook.com/v21.0/{phone_id}/messages"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
+    to = _digits_only(mobile)
 
-    # Prefer AUTHENTICATION template in production
-    if template:
+    # Meta default sample — no variables
+    if template.lower() in ("hello_world", "hello world"):
         body = {
             "messaging_product": "whatsapp",
-            "to": mobile.lstrip("+") if False else mobile.replace("+", ""),  # Meta wants country code without + often
+            "to": to,
+            "type": "template",
+            "template": {
+                "name": "hello_world",
+                "language": {"code": "en_US"},
+            },
+        }
+    elif template:
+        # Real OTP / utility template with body {{1}}
+        body = {
+            "messaging_product": "whatsapp",
+            "to": to,
             "type": "template",
             "template": {
                 "name": template,
-                "language": {"code": "en_US"},
+                "language": {"code": lang},
                 "components": [
                     {
                         "type": "body",
                         "parameters": [{"type": "text", "text": code}],
-                    },
-                    {
-                        "type": "button",
-                        "sub_type": "url",
-                        "index": "0",
-                        "parameters": [{"type": "text", "text": code}],
-                    },
+                    }
                 ],
             },
         }
-        # If your template has only body {{1}}, drop the button component
-        body["template"]["components"] = [
-            {"type": "body", "parameters": [{"type": "text", "text": code}]}
-        ]
-        body["to"] = re.sub(r"\D", "", mobile)  # 9198... no plus
     else:
-        # Dev only — may fail outside 24h window / without template
+        # Fallback text (only works inside 24h session window)
         body = {
             "messaging_product": "whatsapp",
-            "to": re.sub(r"\D", "", mobile),
+            "to": to,
             "type": "text",
-            "text": {"body": f"Your verification code is {code}. Valid for 5 minutes."},
+            "text": {
+                "body": f"Your verification code is {code}. Valid for 5 minutes.",
+            },
         }
 
-    # Use same Workers fetch helper as Cashfree (not urllib)
-    from routes.payments import _http_json  # or shared http util
     code_http, data = await _http_json("POST", url, headers, body)
     if code_http >= 400:
-        raise HTTPException(
-            502,
-            detail=data.get("error", {}).get("message") if isinstance(data, dict) else "WhatsApp send failed",
-        )
+        err = {}
+        if isinstance(data, dict):
+            err = data.get("error") or data
+        msg = err.get("message") if isinstance(err, dict) else str(data)
+        raise HTTPException(status_code=502, detail=msg or "WhatsApp send failed")
     return data
 
 
@@ -125,9 +188,15 @@ async def otp_send(data: OtpSendRequest, request: Request):
     ).bind(mobile, mobile.lstrip("+")).first()
 
     if purpose == "login" and not user:
-        raise HTTPException(404, detail="No account with this mobile. Please sign up.")
+        raise HTTPException(
+            status_code=404,
+            detail="No account with this mobile. Please sign up.",
+        )
     if purpose == "signup" and user:
-        raise HTTPException(409, detail="Mobile already registered. Please login.")
+        raise HTTPException(
+            status_code=409,
+            detail="Mobile already registered. Please login.",
+        )
 
     code = f"{secrets.randbelow(10**6):06d}"
     salt = secrets.token_hex(8)
@@ -135,9 +204,11 @@ async def otp_send(data: OtpSendRequest, request: Request):
     expires = (datetime.utcnow() + timedelta(seconds=OTP_TTL_SEC)).isoformat()
     otp_id = secrets.token_hex(8)
 
-    # Invalidate old OTPs for this mobile+purpose
     await db.prepare(
-        "UPDATE otp_codes SET consumed = 1 WHERE mobile = ? AND purpose = ? AND consumed = 0"
+        """
+        UPDATE otp_codes SET consumed = 1
+        WHERE mobile = ? AND purpose = ? AND consumed = 0
+        """
     ).bind(mobile, purpose).run()
 
     await db.prepare(
@@ -172,22 +243,31 @@ async def otp_verify(data: OtpVerifyRequest, request: Request):
         """
     ).bind(mobile, purpose).first()
     if not row:
-        raise HTTPException(400, detail="OTP expired or not found. Request a new one.")
+        raise HTTPException(
+            status_code=400,
+            detail="OTP expired or not found. Request a new one.",
+        )
 
     r = dict(row)
-    if r.get("attempts", 0) >= OTP_MAX_ATTEMPTS:
-        raise HTTPException(429, detail="Too many attempts. Request a new OTP.")
+    if int(r.get("attempts") or 0) >= OTP_MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many attempts. Request a new OTP.",
+        )
 
     exp = datetime.fromisoformat(str(r["expires_at"]).replace("Z", ""))
     if datetime.utcnow() > exp:
-        raise HTTPException(400, detail="OTP expired. Request a new one.")
+        raise HTTPException(
+            status_code=400,
+            detail="OTP expired. Request a new one.",
+        )
 
     salt, stored_hash = str(r["code_hash"]).split(":", 1)
     if not hmac.compare_digest(_hash_otp(otp, salt), stored_hash):
         await db.prepare(
             "UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?"
         ).bind(r["id"]).run()
-        raise HTTPException(400, detail="Invalid OTP")
+        raise HTTPException(status_code=400, detail="Invalid OTP")
 
     await db.prepare(
         "UPDATE otp_codes SET consumed = 1 WHERE id = ?"
@@ -198,19 +278,22 @@ async def otp_verify(data: OtpVerifyRequest, request: Request):
             "SELECT * FROM users WHERE mobile = ? OR mobile = ?"
         ).bind(mobile, mobile.lstrip("+")).first()
         if not user:
-            raise HTTPException(404, detail="User not found")
+            raise HTTPException(status_code=404, detail="User not found")
         u = dict(user)
     else:
-        # signup
         existing = await db.prepare(
             "SELECT id FROM users WHERE mobile = ? OR mobile = ?"
         ).bind(mobile, mobile.lstrip("+")).first()
         if existing:
-            raise HTTPException(409, detail="Mobile already registered")
+            raise HTTPException(
+                status_code=409,
+                detail="Mobile already registered",
+            )
 
         full_name = (data.fullName or data.name or "User").strip()
-        user_id = secrets.token_hex(4).upper()  # match your id style if needed
-        email = (data.email or f"{re.sub(r'\\D', '', mobile)}@otp.local").strip()
+        user_id = secrets.token_hex(4).upper()
+        digits = _digits_only(mobile)
+        email = (data.email or f"{digits}@otp.local").strip()
         want_to = data.want_to or "finder"
 
         await db.prepare(
@@ -230,11 +313,14 @@ async def otp_verify(data: OtpVerifyRequest, request: Request):
             data.pincode or "",
             data.gender or "",
             want_to,
-            secrets.token_hex(16),  # no password login required
+            secrets.token_hex(16),
             data.lat,
             data.lng,
         ).run()
-        user = await db.prepare("SELECT * FROM users WHERE id = ?").bind(user_id).first()
+
+        user = await db.prepare(
+            "SELECT * FROM users WHERE id = ?"
+        ).bind(user_id).first()
         u = dict(user)
 
     token = create_access_token({"sub": u["id"]})
