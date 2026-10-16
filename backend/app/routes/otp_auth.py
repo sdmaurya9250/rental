@@ -53,7 +53,7 @@ def _hash_otp(code: str, salt: str) -> str:
 
 
 def _digits_only(mobile: str) -> str:
-    """Meta 'to' field: country code + number, no +."""
+    """Meta 'to' field: digits only, no +."""
     return re.sub(r"\D", "", mobile or "")
 
 
@@ -109,8 +109,8 @@ async def _http_json(
 async def _send_whatsapp_otp(request: Request, mobile: str, code: str):
     """
     Template from WHATSAPP_OTP_TEMPLATE.
-    - hello_world (Meta default): language en_US, NO components
-    - real OTP template: language en_US (or WHATSAPP_OTP_LANG), body {{1}} = code
+    - hello_world: en_US, no components (does NOT include OTP digits)
+    - real OTP template: body {{1}} = code
     """
     env = request.scope["env"]
     token = (getattr(env, "WHATSAPP_TOKEN", None) or "").strip()
@@ -128,7 +128,6 @@ async def _send_whatsapp_otp(request: Request, mobile: str, code: str):
     }
     to = _digits_only(mobile)
 
-    # Meta default sample — no variables
     if template.lower() in ("hello_world", "hello world"):
         body = {
             "messaging_product": "whatsapp",
@@ -140,7 +139,6 @@ async def _send_whatsapp_otp(request: Request, mobile: str, code: str):
             },
         }
     elif template:
-        # Real OTP / utility template with body {{1}}
         body = {
             "messaging_product": "whatsapp",
             "to": to,
@@ -157,7 +155,6 @@ async def _send_whatsapp_otp(request: Request, mobile: str, code: str):
             },
         }
     else:
-        # Fallback text (only works inside 24h session window)
         body = {
             "messaging_product": "whatsapp",
             "to": to,
