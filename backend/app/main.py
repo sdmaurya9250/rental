@@ -22,7 +22,7 @@ from routes.options import router as options_router
 from routes.booking_stats import router as booking_stats_router
 from routes.response_rate import router as response_rate_router
 from routes.payments import router as payments_router
-from routes.auth_otp import router as auth_otp_router
+from routes.otp_auth import router as otp_auth_router
 
 app = FastAPI(title="RentPeople API", version="1.0.0")
 
@@ -54,7 +54,7 @@ app.include_router(options_router, prefix="/api", tags=["Options"])
 app.include_router(booking_stats_router, prefix="/api", tags=["BookingStats"])
 app.include_router(response_rate_router, prefix="/api", tags=["ResponseRate"])
 app.include_router(payments_router, prefix="/api", tags=["Payments"])
-app.include_router(auth_otp_router, prefix="/api", tags=["AuthOTP"])
+app.include_router(otp_auth_router, prefix="/api", tags=["Auth"])
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
