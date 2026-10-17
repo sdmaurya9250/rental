@@ -23,6 +23,103 @@
 #         return default
 #
 #
+# def _norm_preferred_locations(raw) -> list:
+#     """Normalize [{name, address, lat, lng}, ...] or string names."""
+#     if raw is None:
+#         return []
+#     if isinstance(raw, str):
+#         try:
+#             raw = json.loads(raw)
+#         except Exception:
+#             raw = [raw] if raw.strip() else []
+#     if not isinstance(raw, list):
+#         return []
+#
+#     out = []
+#     for item in raw:
+#         if hasattr(item, "model_dump"):
+#             d = item.model_dump()
+#         elif isinstance(item, dict):
+#             d = item
+#         elif isinstance(item, str) and item.strip():
+#             d = {"name": item.strip()}
+#         else:
+#             continue
+#         name = (d.get("name") or d.get("title") or "").strip()
+#         if not name:
+#             continue
+#         loc = {"name": name[:200]}
+#         addr = d.get("address")
+#         if addr is not None and str(addr).strip():
+#             loc["address"] = str(addr).strip()[:300]
+#         try:
+#             if d.get("lat") is not None:
+#                 loc["lat"] = float(d["lat"])
+#             if d.get("lng") is not None:
+#                 loc["lng"] = float(d["lng"])
+#         except (TypeError, ValueError):
+#             pass
+#         out.append(loc)
+#     return out
+#
+#
+# def _norm_location_names(raw, preferred: list) -> list:
+#     names: list[str] = []
+#     if isinstance(raw, list):
+#         for x in raw:
+#             if isinstance(x, str) and x.strip():
+#                 names.append(x.strip()[:200])
+#             elif isinstance(x, dict) and (x.get("name") or "").strip():
+#                 names.append(str(x["name"]).strip()[:200])
+#     for p in preferred:
+#         n = (p.get("name") or "").strip()
+#         if n and n not in names:
+#             names.append(n)
+#     return names
+#
+#
+# def _normalize_service(item, index: int = 0) -> dict:
+#     if hasattr(item, "model_dump"):
+#         d = item.model_dump()
+#     elif isinstance(item, dict):
+#         d = item
+#     else:
+#         d = {}
+#
+#     name = (d.get("name") or d.get("title") or f"Service {index + 1}").strip()
+#     sid = (d.get("id") or "").strip() or f"svc_{uuid.uuid4().hex[:8]}"
+#     try:
+#         price = int(d.get("price") or 0)
+#     except (TypeError, ValueError):
+#         price = 0
+#     duration = (d.get("duration") or "1 hr").strip() or "1 hr"
+#
+#     preferred = _norm_preferred_locations(
+#         d.get("preferred_locations") or d.get("preferredLocations")
+#     )
+#     locations = _norm_location_names(
+#         d.get("locations") or d.get("location_names"),
+#         preferred,
+#     )
+#
+#     return {
+#         "id": sid,
+#         "name": name,
+#         "title": name,
+#         "price": price,
+#         "duration": duration,
+#         "locations": locations,
+#         "preferred_locations": preferred,
+#     }
+#
+#
+# def _normalize_services(raw) -> list:
+#     items = _parse_json_field(raw, [])
+#     if not isinstance(items, list):
+#         return []
+#     return [_normalize_service(s, i) for i, s in enumerate(items)]
+#
+#
 # def _ext_from_content_type(content_type: str) -> str:
 #     ct = (content_type or "").lower()
 #     if "png" in ct:
@@ -54,11 +151,6 @@
 #
 #
 # async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
-#     """
-#     Supports:
-#       1) Raw body: Content-Type: image/jpeg
-#       2) Multipart: field name file | photo | image | avatar
-#     """
 #     content_type = (request.headers.get("content-type") or "").lower()
 #
 #     if "multipart/form-data" in content_type:
@@ -114,12 +206,15 @@
 #     ct = content_type if content_type.startswith("image/") else "image/jpeg"
 #     return body, ct
 #
+#
 # @router.get("/profile")
 # async def get_profile(current_user: dict = Depends(get_current_user)):
-#     services = _parse_json_field(current_user.get("services"), [])
+#     services = _normalize_services(current_user.get("services"))
 #     gallery = _parse_json_field(current_user.get("gallery"), [])
+#     preferred_locations = _norm_preferred_locations(
+#         current_user.get("preferred_locations")
+#     )
 #
-#     # languages / interests: JSON list or comma string → always list for app
 #     languages = _parse_json_field(current_user.get("languages"), [])
 #     if not languages and isinstance(current_user.get("languages"), str):
 #         raw = (current_user.get("languages") or "").strip()
@@ -162,6 +257,8 @@
 #         "interests": interests,
 #         "services": services,
 #         "gallery": gallery,
+#         "preferred_locations": preferred_locations,
+#         "preferredLocations": preferred_locations,
 #         "lat": current_user.get("lat"),
 #         "lng": current_user.get("lng"),
 #         "rating_avg": float(current_user.get("rating_avg") or 0),
@@ -183,6 +280,14 @@
 # ):
 #     db = request.scope["env"].DB
 #     user_id = current_user["id"]
+#
+#     # Also accept raw body keys not on ProfileUpdate (preferred_locations, etc.)
+#     try:
+#         body = await request.json()
+#     except Exception:
+#         body = {}
+#     if not isinstance(body, dict):
+#         body = {}
 #
 #     updates = []
 #     values = []
@@ -249,17 +354,40 @@
 #         updates.append("lng = ?")
 #         values.append(data.lng)
 #
+#     # Services — keep locations + preferred_locations
 #     if data.services is not None:
-#         updates.append("services = ?")
-#         values.append(
-#             json.dumps(
-#                 [s.model_dump() if hasattr(s, "model_dump") else dict(s) for s in data.services]
+#         services = [
+#             _normalize_service(
+#                 s.model_dump() if hasattr(s, "model_dump") else s, i
 #             )
-#         )
+#             for i, s in enumerate(data.services)
+#         ]
+#         updates.append("services = ?")
+#         values.append(json.dumps(services))
+#     elif "services" in body and isinstance(body.get("services"), list):
+#         services = [_normalize_service(s, i) for i, s in enumerate(body["services"])]
+#         updates.append("services = ?")
+#         values.append(json.dumps(services))
 #
 #     if data.gallery is not None:
 #         updates.append("gallery = ?")
 #         values.append(json.dumps(data.gallery[:MAX_GALLERY]))
+#
+#     # Profile-level preferred places
+#     pref_raw = None
+#     if hasattr(data, "preferred_locations") and data.preferred_locations is not None:
+#         pref_raw = data.preferred_locations
+#     elif hasattr(data, "preferredLocations") and getattr(data, "preferredLocations", None) is not None:
+#         pref_raw = data.preferredLocations
+#     elif "preferred_locations" in body:
+#         pref_raw = body.get("preferred_locations")
+#     elif "preferredLocations" in body:
+#         pref_raw = body.get("preferredLocations")
+#
+#     if pref_raw is not None:
+#         preferred = _norm_preferred_locations(pref_raw)
+#         updates.append("preferred_locations = ?")
+#         values.append(json.dumps(preferred))
 #
 #     if not updates:
 #         raise HTTPException(status_code=400, detail="No fields to update")
@@ -278,13 +406,6 @@
 #     type: str = Query("avatar", description="avatar | gallery"),
 #     index: int = Query(0, ge=0, le=3, description="Gallery slot 0-3 when type=gallery"),
 # ):
-#     """
-#     Flutter:
-#       - multipart field: file | photo | image
-#       - or raw body with Content-Type: image/jpeg
-#     Query: ?type=avatar|gallery&index=0
-#     Gallery max 4; index overwrites that slot.
-#     """
 #     photo_type = (type or "avatar").lower().strip()
 #     if photo_type not in ("avatar", "gallery"):
 #         raise HTTPException(status_code=400, detail="type must be avatar or gallery")
@@ -353,6 +474,7 @@
 #     }
 
 
+
 from fastapi import APIRouter, Request, Depends, HTTPException, status, Query
 from models.user import ProfileUpdate
 from utils.security import decode_access_token
@@ -379,7 +501,6 @@ def _parse_json_field(value, default=None):
 
 
 def _norm_preferred_locations(raw) -> list:
-    """Normalize [{name, address, lat, lng}, ...] or string names."""
     if raw is None:
         return []
     if isinstance(raw, str):
@@ -636,7 +757,6 @@ async def update_profile(
     db = request.scope["env"].DB
     user_id = current_user["id"]
 
-    # Also accept raw body keys not on ProfileUpdate (preferred_locations, etc.)
     try:
         body = await request.json()
     except Exception:
@@ -709,7 +829,6 @@ async def update_profile(
         updates.append("lng = ?")
         values.append(data.lng)
 
-    # Services — keep locations + preferred_locations
     if data.services is not None:
         services = [
             _normalize_service(
@@ -728,11 +847,10 @@ async def update_profile(
         updates.append("gallery = ?")
         values.append(json.dumps(data.gallery[:MAX_GALLERY]))
 
-    # Profile-level preferred places
     pref_raw = None
     if hasattr(data, "preferred_locations") and data.preferred_locations is not None:
         pref_raw = data.preferred_locations
-    elif hasattr(data, "preferredLocations") and getattr(data, "preferredLocations", None) is not None:
+    elif getattr(data, "preferredLocations", None) is not None:
         pref_raw = data.preferredLocations
     elif "preferred_locations" in body:
         pref_raw = body.get("preferred_locations")
