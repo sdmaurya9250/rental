@@ -77,41 +77,6 @@ def _norm_location_names(raw, preferred: list) -> list:
     return names
 
 
-# def _normalize_service(item, index: int = 0) -> dict:
-#     if hasattr(item, "model_dump"):
-#         d = item.model_dump()
-#     elif isinstance(item, dict):
-#         d = item
-#     else:
-#         d = {}
-#
-#     name = (d.get("name") or d.get("title") or f"Service {index + 1}").strip()
-#     sid = (d.get("id") or "").strip() or f"svc_{uuid.uuid4().hex[:8]}"
-#     try:
-#         price = int(d.get("price") or 0)
-#     except (TypeError, ValueError):
-#         price = 0
-#     duration = (d.get("duration") or "1 hr").strip() or "1 hr"
-#
-#     preferred = _norm_preferred_locations(
-#         d.get("preferred_locations") or d.get("preferredLocations")
-#     )
-#     locations = _norm_location_names(
-#         d.get("locations") or d.get("location_names"),
-#         preferred,
-#     )
-#
-#     return {
-#         "id": sid,
-#         "name": name,
-#         "title": name,
-#         "price": price,
-#         "duration": duration,
-#         "locations": locations,
-#         "preferred_locations": preferred,
-#     }
-
-
 def _normalize_service(item, index: int = 0) -> dict:
     if hasattr(item, "model_dump"):
         d = item.model_dump()

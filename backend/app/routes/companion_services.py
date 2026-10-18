@@ -15,15 +15,30 @@ class PreferredLocation(BaseModel):
     lng: Optional[float] = None
 
 
+# class CompanionServiceItem(BaseModel):
+#     id: Optional[str] = None
+#     name: str = Field(..., min_length=1, max_length=100)
+#     price: int = Field(..., ge=0)
+#     duration: Optional[str] = "1 hr"
+#     title: Optional[str] = None
+#     # Place fields (app sends these)
+#     locations: Optional[List[str]] = None
+#     preferred_locations: Optional[List[PreferredLocation]] = None
+
 class CompanionServiceItem(BaseModel):
     id: Optional[str] = None
     name: str = Field(..., min_length=1, max_length=100)
     price: int = Field(..., ge=0)
     duration: Optional[str] = "1 hr"
     title: Optional[str] = None
-    # Place fields (app sends these)
     locations: Optional[List[str]] = None
     preferred_locations: Optional[List[PreferredLocation]] = None
+    # per-service
+    interests: Optional[List[str]] = None
+    available_time: Optional[Any] = None
+    availableTime: Optional[Any] = None
+    time_slots: Optional[List[Any]] = None
+    timeSlots: Optional[List[Any]] = None
 
 
 class CompanionServicesReplace(BaseModel):
@@ -99,6 +114,36 @@ def _norm_location_names(raw: Any, preferred: list) -> list:
     return names
 
 
+# def _normalize_item(item: dict | CompanionServiceItem, index: int = 0) -> dict:
+#     if hasattr(item, "model_dump"):
+#         d = item.model_dump()
+#     else:
+#         d = dict(item)
+#
+#     name = (d.get("name") or d.get("title") or f"Service {index + 1}").strip()
+#     sid = (d.get("id") or "").strip() or f"svc_{secrets.token_hex(4)}"
+#     price = int(d.get("price") or 0)
+#     duration = (d.get("duration") or "1 hr").strip() or "1 hr"
+#
+#     preferred = _norm_preferred_locations(
+#         d.get("preferred_locations") or d.get("preferredLocations")
+#     )
+#     locations = _norm_location_names(
+#         d.get("locations") or d.get("location_names"),
+#         preferred,
+#     )
+#
+#     return {
+#         "id": sid,
+#         "name": name,
+#         "title": name,
+#         "price": price,
+#         "duration": duration,
+#         "locations": locations,
+#         "preferred_locations": preferred,
+#     }
+
+
 def _normalize_item(item: dict | CompanionServiceItem, index: int = 0) -> dict:
     if hasattr(item, "model_dump"):
         d = item.model_dump()
@@ -118,6 +163,32 @@ def _normalize_item(item: dict | CompanionServiceItem, index: int = 0) -> dict:
         preferred,
     )
 
+    interests_raw = d.get("interests") or d.get("interest") or []
+    if isinstance(interests_raw, str):
+        interests = [x.strip() for x in interests_raw.split(",") if x.strip()]
+    elif isinstance(interests_raw, list):
+        interests = [str(x).strip() for x in interests_raw if str(x).strip()]
+    else:
+        interests = []
+
+    available_time = d.get("available_time") or d.get("availableTime") or {}
+    if isinstance(available_time, str):
+        try:
+            available_time = json.loads(available_time)
+        except Exception:
+            available_time = {}
+    if not isinstance(available_time, dict):
+        available_time = {}
+
+    time_slots = d.get("time_slots") or d.get("timeSlots") or []
+    if isinstance(time_slots, str):
+        try:
+            time_slots = json.loads(time_slots)
+        except Exception:
+            time_slots = []
+    if not isinstance(time_slots, list):
+        time_slots = []
+
     return {
         "id": sid,
         "name": name,
@@ -126,6 +197,11 @@ def _normalize_item(item: dict | CompanionServiceItem, index: int = 0) -> dict:
         "duration": duration,
         "locations": locations,
         "preferred_locations": preferred,
+        "interests": interests,
+        "available_time": available_time,
+        "availableTime": available_time,
+        "time_slots": time_slots,
+        "timeSlots": time_slots,
     }
 
 
