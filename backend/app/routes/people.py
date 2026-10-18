@@ -6,19 +6,18 @@
 #
 # router = APIRouter()
 #
-# # Progressive radii (km) — OLX-style
 # RADIUS_STEPS = [5.0, 10.0, 20.0]
-# MIN_RESULTS = 5  # expand radius if fewer than this
+# MIN_RESULTS = 5
 #
 #
 # class FeedRequest(BaseModel):
 #     lat: float
 #     lng: float
 #     city: Optional[str] = None
-#     area: Optional[str] = None  # e.g. "Koregaon Park" (display / soft filter)
+#     area: Optional[str] = None
 #     user_id: Optional[str] = None
-#     radius_km: Optional[float] = None  # 5 | 10 | 20 | omit
-#     expand: Optional[bool] = True  # if True, grow 5→10→20 when few results
+#     radius_km: Optional[float] = None
+#     expand: Optional[bool] = True
 #
 #
 # def _parse_json_list(value, default=None):
@@ -40,6 +39,58 @@
 #     return default
 #
 #
+# def _norm_preferred_locations(raw) -> list:
+#     if raw is None:
+#         return []
+#     if isinstance(raw, str):
+#         try:
+#             raw = json.loads(raw)
+#         except Exception:
+#             raw = [raw] if str(raw).strip() else []
+#     if not isinstance(raw, list):
+#         return []
+#
+#     out = []
+#     for item in raw:
+#         if isinstance(item, dict):
+#             d = item
+#         elif isinstance(item, str) and item.strip():
+#             d = {"name": item.strip()}
+#         else:
+#             continue
+#         name = (d.get("name") or d.get("title") or "").strip()
+#         if not name:
+#             continue
+#         loc = {"name": name[:200]}
+#         addr = d.get("address")
+#         if addr is not None and str(addr).strip():
+#             loc["address"] = str(addr).strip()[:300]
+#         try:
+#             if d.get("lat") is not None:
+#                 loc["lat"] = float(d["lat"])
+#             if d.get("lng") is not None:
+#                 loc["lng"] = float(d["lng"])
+#         except (TypeError, ValueError):
+#             pass
+#         out.append(loc)
+#     return out
+#
+#
+# def _norm_location_names(raw, preferred: list) -> list:
+#     names: list[str] = []
+#     if isinstance(raw, list):
+#         for x in raw:
+#             if isinstance(x, str) and x.strip():
+#                 names.append(x.strip()[:200])
+#             elif isinstance(x, dict) and (x.get("name") or "").strip():
+#                 names.append(str(x["name"]).strip()[:200])
+#     for p in preferred:
+#         n = (p.get("name") or "").strip()
+#         if n and n not in names:
+#             names.append(n)
+#     return names
+#
+#
 # def _normalize_services(raw_services, fallback_price=1500):
 #     services = _parse_json_list(raw_services, [])
 #     result = []
@@ -50,11 +101,20 @@
 #             price = int(item.get("price") or fallback_price)
 #             duration = item.get("duration") or "1 hr"
 #             sid = item.get("id") or f"service-{index + 1}"
+#             preferred = _norm_preferred_locations(
+#                 item.get("preferred_locations") or item.get("preferredLocations")
+#             )
+#             locations = _norm_location_names(
+#                 item.get("locations") or item.get("location_names"),
+#                 preferred,
+#             )
 #         else:
 #             name = str(item)
 #             price = int(fallback_price)
 #             duration = "1 hr"
 #             sid = f"service-{index + 1}"
+#             preferred = []
+#             locations = []
 #
 #         result.append({
 #             "id": sid,
@@ -62,14 +122,48 @@
 #             "title": name,
 #             "price": price,
 #             "duration": duration,
+#             "locations": locations,
+#             "preferred_locations": preferred,
 #         })
 #
 #     if not result:
 #         result = [
-#             {"id": "coffee", "name": "Coffee Partner", "title": "Coffee Partner", "price": fallback_price, "duration": "1 hr"},
-#             {"id": "cafe", "name": "Cafe & Food Partner", "title": "Cafe & Food Partner", "price": int(fallback_price * 1.5), "duration": "2 hrs"},
-#             {"id": "event", "name": "Event Partner", "title": "Event Partner", "price": int(fallback_price * 2.5), "duration": "3 hrs"},
-#             {"id": "travel", "name": "Travel Buddy", "title": "Travel Buddy", "price": int(fallback_price * 4), "duration": "Full Day"},
+#             {
+#                 "id": "coffee",
+#                 "name": "Coffee Partner",
+#                 "title": "Coffee Partner",
+#                 "price": fallback_price,
+#                 "duration": "1 hr",
+#                 "locations": [],
+#                 "preferred_locations": [],
+#             },
+#             {
+#                 "id": "cafe",
+#                 "name": "Cafe & Food Partner",
+#                 "title": "Cafe & Food Partner",
+#                 "price": int(fallback_price * 1.5),
+#                 "duration": "2 hrs",
+#                 "locations": [],
+#                 "preferred_locations": [],
+#             },
+#             {
+#                 "id": "event",
+#                 "name": "Event Partner",
+#                 "title": "Event Partner",
+#                 "price": int(fallback_price * 2.5),
+#                 "duration": "3 hrs",
+#                 "locations": [],
+#                 "preferred_locations": [],
+#             },
+#             {
+#                 "id": "travel",
+#                 "name": "Travel Buddy",
+#                 "title": "Travel Buddy",
+#                 "price": int(fallback_price * 4),
+#                 "duration": "Full Day",
+#                 "locations": [],
+#                 "preferred_locations": [],
+#             },
 #         ]
 #
 #     return result
@@ -105,6 +199,17 @@
 #             "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=600&auto=format&fit=crop"
 #         ]
 #
+#     # Profile-level places (optional) + union from services for finders
+#     preferred_locations = _norm_preferred_locations(r.get("preferred_locations"))
+#     if not preferred_locations:
+#         seen = set()
+#         for s in services:
+#             for loc in s.get("preferred_locations") or []:
+#                 key = (loc.get("name") or "").lower()
+#                 if key and key not in seen:
+#                     seen.add(key)
+#                     preferred_locations.append(loc)
+#
 #     person = {
 #         "id": r["id"],
 #         "name": r.get("full_name") or "User",
@@ -128,6 +233,8 @@
 #         "availableTime": r.get("available_time") or "",
 #         "availability": r.get("available_time") or "",
 #         "services": services,
+#         "preferred_locations": preferred_locations,
+#         "preferredLocations": preferred_locations,
 #         "rating_avg": float(r.get("rating_avg") or 0),
 #         "rating_count": int(r.get("rating_count") or 0),
 #     }
@@ -147,22 +254,14 @@
 #
 #
 # def _apply_radius(people: list, radius_km: Optional[float], expand: bool):
-#     """
-#     OLX-style:
-#       - expand=True  → try 5 → 10 → 20 until MIN_RESULTS (or all)
-#       - expand=False → strict radius only
-#       - radius_km=None + expand → same progressive from 5
-#     """
 #     people = sorted(people, key=lambda p: p.get("distance_km", 9999))
 #
 #     if radius_km is not None and not expand:
 #         filtered = _filter_by_radius(people, radius_km)
 #         return filtered, float(radius_km)
 #
-#     # Progressive steps
 #     steps = list(RADIUS_STEPS)
 #     if radius_km is not None:
-#         # start from requested, then larger only
 #         steps = [r for r in steps if r >= float(radius_km)]
 #         if not steps:
 #             steps = [float(radius_km)]
@@ -175,14 +274,9 @@
 #         if len(chosen) >= MIN_RESULTS:
 #             return chosen, used
 #
-#     # Still few → return all with distance (no hard cut)
 #     return people, used
 #
 #
-# # ─────────────────────────────────────────────
-# # POST /api/people  — main near-me feed
-# # Body: { lat, lng, city?, area?, user_id?, radius_km?, expand? }
-# # ─────────────────────────────────────────────
 # @router.post("/people")
 # async def people_feed(data: FeedRequest, request: Request):
 #     db = request.scope["env"].DB
@@ -190,11 +284,10 @@
 #     exclude_id = (data.user_id or "").strip() or None
 #     expand = True if data.expand is None else bool(data.expand)
 #
-#     # Companions only (new + legacy role strings)
 #     sql = """
 #         SELECT id, full_name, city, gender, price, bio, image, is_available,
 #                services, interests, want_to, languages, available_time, gallery,
-#                lat, lng, rating_avg, rating_count
+#                lat, lng, rating_avg, rating_count, preferred_locations
 #         FROM users
 #         WHERE lat IS NOT NULL
 #           AND lng IS NOT NULL
@@ -210,10 +303,7 @@
 #         sql += " AND id != ?"
 #         params.append(exclude_id)
 #
-#     # Soft city filter (e.g. "Pune") — does not block other areas if empty
 #     if data.city and data.city.strip():
-#         # Prefer city match but OLX often still shows nearby across city text;
-#         # keep as soft filter on city column
 #         sql += " AND LOWER(COALESCE(city, '')) LIKE ?"
 #         params.append(f"%{data.city.strip().lower()}%")
 #
@@ -234,9 +324,6 @@
 #         dist = _haversine_km(data.lat, data.lng, ulat, ulng)
 #         people.append(_row_to_person(r, detailed=False, distance_km=dist))
 #
-#     # Optional area soft boost: names containing area stay sorted by distance still
-#     # (distance order is primary; no hard filter on area string)
-#
 #     filtered, used_radius = _apply_radius(people, data.radius_km, expand)
 #
 #     return {
@@ -255,11 +342,6 @@
 #     }
 #
 #
-# # ─────────────────────────────────────────────
-# # GET /api/people
-# # Near-me: ?lat=&lng=&city=&area=&radius_km=&expand=&user_id=
-# # Browse:  ?city=&sort=&limit=
-# # ─────────────────────────────────────────────
 # @router.get("/people")
 # async def browse_people(
 #     request: Request,
@@ -288,13 +370,12 @@
 #         result["count"] = len(result["people"])
 #         return result
 #
-#     # No coords → city / all browse
 #     db = request.scope["env"].DB
 #
 #     sql = """
 #         SELECT id, full_name, city, gender, price, bio, image, is_available,
 #                services, interests, want_to, languages, available_time, gallery,
-#                lat, lng, rating_avg, rating_count
+#                lat, lng, rating_avg, rating_count, preferred_locations
 #         FROM users
 #         WHERE (
 #             LOWER(COALESCE(want_to, '')) IN ('companion', 'both')
@@ -328,9 +409,6 @@
 #     return {"count": len(people), "people": people}
 #
 #
-# # ─────────────────────────────────────────────
-# # GET /api/people/{user_id}
-# # ─────────────────────────────────────────────
 # @router.get("/people/{user_id}")
 # async def get_person(user_id: str, request: Request):
 #     db = request.scope["env"].DB
@@ -339,7 +417,8 @@
 #         """
 #         SELECT id, full_name, email, mobile, city, gender, price, bio, image,
 #                is_available, available_time, languages, interests, services,
-#                want_to, gallery, lat, lng, rating_avg, rating_count
+#                want_to, gallery, lat, lng, rating_avg, rating_count,
+#                preferred_locations
 #         FROM users WHERE id = ?
 #         """
 #     ).bind(user_id).first()
@@ -348,7 +427,6 @@
 #         raise HTTPException(status_code=404, detail="Person not found")
 #
 #     return _row_to_person(dict(row), detailed=True)
-
 
 
 from fastapi import APIRouter, Request, Query, HTTPException
@@ -531,7 +609,38 @@ def _haversine_km(lat1, lng1, lat2, lng2) -> float:
     return 2 * R * math.asin(math.sqrt(a))
 
 
-def _row_to_person(r: dict, detailed: bool = False, distance_km: float | None = None):
+async def _kyc_verified_map(db, user_ids: list) -> dict:
+    """user_id -> True if KYC is verified."""
+    out = {uid: False for uid in user_ids}
+    if not user_ids:
+        return out
+    placeholders = ",".join("?" * len(user_ids))
+    try:
+        rows = await db.prepare(
+            f"""
+            SELECT user_id, status FROM kyc
+            WHERE user_id IN ({placeholders})
+              AND LOWER(COALESCE(status, '')) = 'verified'
+            """
+        ).bind(*user_ids).all()
+        items = rows.results if hasattr(rows, "results") else rows
+        for row in items:
+            r = dict(row)
+            uid = r.get("user_id")
+            if uid:
+                out[uid] = True
+    except Exception:
+        # kyc table missing or query error — leave all False
+        pass
+    return out
+
+
+def _row_to_person(
+    r: dict,
+    detailed: bool = False,
+    distance_km: float | None = None,
+    kyc_verified: bool = False,
+):
     price = int(r.get("price") or 1500)
     services = _normalize_services(r.get("services"), price)
 
@@ -552,7 +661,6 @@ def _row_to_person(r: dict, detailed: bool = False, distance_km: float | None = 
             "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=600&auto=format&fit=crop"
         ]
 
-    # Profile-level places (optional) + union from services for finders
     preferred_locations = _norm_preferred_locations(r.get("preferred_locations"))
     if not preferred_locations:
         seen = set()
@@ -562,6 +670,8 @@ def _row_to_person(r: dict, detailed: bool = False, distance_km: float | None = 
                 if key and key not in seen:
                     seen.add(key)
                     preferred_locations.append(loc)
+
+    verified = bool(kyc_verified)
 
     person = {
         "id": r["id"],
@@ -590,6 +700,10 @@ def _row_to_person(r: dict, detailed: bool = False, distance_km: float | None = 
         "preferredLocations": preferred_locations,
         "rating_avg": float(r.get("rating_avg") or 0),
         "rating_count": int(r.get("rating_count") or 0),
+        # KYC badge for PeopleGrid
+        "verified": verified,
+        "kyc_verified": verified,
+        "isVerified": verified,
     }
 
     if distance_km is not None:
@@ -665,7 +779,7 @@ async def people_feed(data: FeedRequest, request: Request):
     rows = await db.prepare(sql).bind(*params).all()
     results = rows.results if hasattr(rows, "results") else rows
 
-    people = []
+    raw = []
     for row in results:
         r = dict(row)
         try:
@@ -673,9 +787,20 @@ async def people_feed(data: FeedRequest, request: Request):
             ulng = float(r["lng"])
         except (TypeError, ValueError, KeyError):
             continue
-
         dist = _haversine_km(data.lat, data.lng, ulat, ulng)
-        people.append(_row_to_person(r, detailed=False, distance_km=dist))
+        raw.append((r, dist))
+
+    verified_map = await _kyc_verified_map(db, [r["id"] for r, _ in raw])
+
+    people = [
+        _row_to_person(
+            r,
+            detailed=False,
+            distance_km=dist,
+            kyc_verified=verified_map.get(r["id"], False),
+        )
+        for r, dist in raw
+    ]
 
     filtered, used_radius = _apply_radius(people, data.radius_km, expand)
 
@@ -757,7 +882,17 @@ async def browse_people(
 
     rows = await db.prepare(sql).bind(*params).all()
     results = rows.results if hasattr(rows, "results") else rows
-    people = [_row_to_person(dict(row), detailed=False) for row in results]
+    raw_rows = [dict(row) for row in results]
+    verified_map = await _kyc_verified_map(db, [r["id"] for r in raw_rows])
+
+    people = [
+        _row_to_person(
+            r,
+            detailed=False,
+            kyc_verified=verified_map.get(r["id"], False),
+        )
+        for r in raw_rows
+    ]
 
     return {"count": len(people), "people": people}
 
@@ -779,4 +914,9 @@ async def get_person(user_id: str, request: Request):
     if not row:
         raise HTTPException(status_code=404, detail="Person not found")
 
-    return _row_to_person(dict(row), detailed=True)
+    verified_map = await _kyc_verified_map(db, [user_id])
+    return _row_to_person(
+        dict(row),
+        detailed=True,
+        kyc_verified=verified_map.get(user_id, False),
+    )

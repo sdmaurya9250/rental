@@ -861,46 +861,98 @@ def _ext_from_content_type(content_type: str) -> str:
         return "gif"
     return "jpg"
 
-
 async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
+    """
+    Supports:
+      1) Raw body + Content-Type: image/jpeg (preferred on Workers)
+      2) Multipart — manual parse (no python-multipart)
+    """
     content_type = (request.headers.get("content-type") or "").lower()
-
-    if "multipart/form-data" in content_type:
-        try:
-            form = await request.form()
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Multipart parse failed: {e}")
-
-        file = (
-            form.get("file")
-            or form.get("photo")
-            or form.get("image")
-            or form.get("document")
-        )
-        if file is None:
-            raise HTTPException(
-                status_code=400,
-                detail="No file field. Use: file | photo | image | document",
-            )
-        if hasattr(file, "read"):
-            body = await file.read()
-            ct = getattr(file, "content_type", None) or "image/jpeg"
-        elif isinstance(file, (bytes, bytearray)):
-            body = bytes(file)
-            ct = "image/jpeg"
-        else:
-            raise HTTPException(status_code=400, detail="Invalid file field")
-        if not body:
-            raise HTTPException(status_code=400, detail="Empty file")
-        if not str(ct).startswith("image/"):
-            ct = "image/jpeg"
-        return body, str(ct)
-
     body = await request.body()
+
     if not body:
         raise HTTPException(status_code=400, detail="No file received")
-    ct = content_type if content_type.startswith("image/") else "image/jpeg"
-    return body, ct
+
+    # --- Preferred: raw image ---
+    if content_type.startswith("image/") or "octet-stream" in content_type:
+        ct = content_type if content_type.startswith("image/") else "image/jpeg"
+        return body, ct
+
+    # --- Multipart without python-multipart ---
+    if "multipart/form-data" in content_type:
+        # boundary=....
+        boundary = None
+        for part in content_type.split(";"):
+            part = part.strip()
+            if part.startswith("boundary="):
+                boundary = part.split("=", 1)[1].strip().strip('"')
+                break
+        if not boundary:
+            raise HTTPException(status_code=400, detail="Missing multipart boundary")
+
+        delim = ("--" + boundary).encode("utf-8")
+        chunks = body.split(delim)
+
+        for chunk in chunks:
+            if not chunk or chunk in (b"--", b"--\r\n", b"\r\n"):
+                continue
+            # strip leading CRLF
+            if chunk.startswith(b"\r\n"):
+                chunk = chunk[2:]
+            if chunk.endswith(b"\r\n"):
+                chunk = chunk[:-2]
+            if chunk == b"--":
+                continue
+
+            # header / body split
+            if b"\r\n\r\n" not in chunk:
+                continue
+            header_blob, file_body = chunk.split(b"\r\n\r\n", 1)
+            # trailing boundary markers
+            if file_body.endswith(b"\r\n"):
+                file_body = file_body[:-2]
+            if file_body.endswith(b"--"):
+                file_body = file_body[:-2]
+            if file_body.endswith(b"\r\n"):
+                file_body = file_body[:-2]
+
+            headers = header_blob.decode("utf-8", errors="ignore").lower()
+            # accept file | photo | image | document | any filename=
+            if "filename=" not in headers and "name=\"file\"" not in headers:
+                if not any(
+                    n in headers
+                    for n in (
+                        'name="file"',
+                        'name="photo"',
+                        'name="image"',
+                        'name="document"',
+                    )
+                ):
+                    # still allow if it looks like a file part with filename
+                    if "filename=" not in headers:
+                        continue
+
+            ct = "image/jpeg"
+            for line in headers.split("\r\n"):
+                if line.startswith("content-type:"):
+                    ct = line.split(":", 1)[1].strip() or "image/jpeg"
+                    break
+
+            if not file_body:
+                raise HTTPException(status_code=400, detail="Empty file")
+            if not ct.startswith("image/"):
+                ct = "image/jpeg"
+            return file_body, ct
+
+        raise HTTPException(
+            status_code=400,
+            detail="No file part in multipart. Use field file|photo|image|document",
+        )
+
+    raise HTTPException(
+        status_code=400,
+        detail="Send image/* body or multipart/form-data with a file field",
+    )
 
 
 def _require_admin(request: Request, current_user: dict):
