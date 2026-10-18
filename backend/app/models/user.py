@@ -2,6 +2,13 @@
 # from typing import Literal, List, Optional, Union
 #
 #
+# class PreferredLocation(BaseModel):
+#     name: str = Field(..., min_length=1, max_length=200)
+#     address: Optional[str] = None
+#     lat: Optional[float] = None
+#     lng: Optional[float] = None
+#
+#
 # class RegisterRequest(BaseModel):
 #     name: Optional[str] = None
 #     fullName: Optional[str] = None
@@ -20,6 +27,7 @@
 # class LoginRequest(BaseModel):
 #     email: str
 #     password: str
+#
 #
 # class FeedRequest(BaseModel):
 #     lat: float
@@ -61,6 +69,8 @@
 #     price: int = 0
 #     title: Optional[str] = None
 #     duration: Optional[str] = None
+#     locations: Optional[List[str]] = None
+#     preferred_locations: Optional[List[PreferredLocation]] = None
 #
 #
 # class ProfileUpdate(BaseModel):
@@ -80,6 +90,9 @@
 #     interests: Optional[Union[str, List[str]]] = None
 #     services: Optional[List[ServiceItem]] = None
 #     gallery: Optional[List[str]] = None
+#     preferred_locations: Optional[List[PreferredLocation]] = None
+#     preferredLocations: Optional[List[PreferredLocation]] = None
+#
 #
 # class BookingCreate(BaseModel):
 #     booking_date: str
@@ -126,7 +139,7 @@
 #
 #
 # class WalletTopUpRequest(BaseModel):
-#     amount: float = Field(..., ge=100)
+#     amount: float = Field(..., ge=1)  # match payments min top-up
 #     method: Optional[str] = "UPI"
 #
 #
@@ -175,15 +188,16 @@
 #     price: int = Field(..., ge=0)
 #     duration: Optional[str] = "1 hr"
 #     title: Optional[str] = None
+#     locations: Optional[List[str]] = None
+#     preferred_locations: Optional[List[PreferredLocation]] = None
 #
 #
 # class CompanionServicesReplace(BaseModel):
 #     services: List[CompanionServiceItem]
 
 
-
 from pydantic import BaseModel, Field
-from typing import Literal, List, Optional, Union
+from typing import Literal, List, Optional, Union, Any, Dict
 
 
 class PreferredLocation(BaseModel):
@@ -255,6 +269,12 @@ class ServiceItem(BaseModel):
     duration: Optional[str] = None
     locations: Optional[List[str]] = None
     preferred_locations: Optional[List[PreferredLocation]] = None
+    # per-service — required so PATCH does not strip them
+    interests: Optional[List[str]] = None
+    available_time: Optional[Dict[str, Any]] = None
+    availableTime: Optional[Dict[str, Any]] = None
+    time_slots: Optional[List[Any]] = None
+    timeSlots: Optional[List[Any]] = None
 
 
 class ProfileUpdate(BaseModel):
@@ -323,7 +343,7 @@ class VerifyOtpRequest(BaseModel):
 
 
 class WalletTopUpRequest(BaseModel):
-    amount: float = Field(..., ge=1)  # match payments min top-up
+    amount: float = Field(..., ge=1)
     method: Optional[str] = "UPI"
 
 
@@ -374,6 +394,11 @@ class CompanionServiceItem(BaseModel):
     title: Optional[str] = None
     locations: Optional[List[str]] = None
     preferred_locations: Optional[List[PreferredLocation]] = None
+    interests: Optional[List[str]] = None
+    available_time: Optional[Dict[str, Any]] = None
+    availableTime: Optional[Dict[str, Any]] = None
+    time_slots: Optional[List[Any]] = None
+    timeSlots: Optional[List[Any]] = None
 
 
 class CompanionServicesReplace(BaseModel):
