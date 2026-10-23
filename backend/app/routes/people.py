@@ -307,10 +307,6 @@ def _row_to_person(
         "preferredLocations": preferred_locations,
         "rating_avg": float(r.get("rating_avg") or 0),
         "rating_count": int(r.get("rating_count") or 0),
-        # KYC badge for PeopleGrid
-        "verified": verified,
-        "kyc_verified": verified,
-        "isVerified": verified,
     }
 
     if distance_km is not None:
