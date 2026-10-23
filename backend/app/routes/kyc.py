@@ -18,38 +18,33 @@
 # # Models
 # # ─────────────────────────────────────────────
 # class KycSubmitRequest(BaseModel):
-#     # Core
 #     doc_type: Optional[str] = None
 #     doc_number: Optional[str] = None
 #     name_on_document: Optional[str] = None
 #     date_of_birth: Optional[str] = None  # YYYY-MM-DD
 #
-#     # Images (prefer kyc/* R2 paths)
-#     document_url: Optional[str] = None          # front (legacy alias)
+#     # Images — front + selfie only (no back)
+#     document_url: Optional[str] = None
 #     document_front_url: Optional[str] = None
-#     document_back_url: Optional[str] = None
 #     selfie_url: Optional[str] = None
 #
-#     # Address helpers
 #     address_line: Optional[str] = None
 #     pincode: Optional[str] = None
-#     document_expiry: Optional[str] = None  # YYYY-MM-DD if passport/DL
+#     document_expiry: Optional[str] = None
 #
 #     declaration_accepted: Optional[bool] = True
 #
-#     # Optional OCR / on-device scan results (app sends after scanning image)
 #     extracted_name: Optional[str] = None
 #     extracted_doc_number: Optional[str] = None
 #     extracted_dob: Optional[str] = None
 #
-#     # Flutter camelCase aliases
+#     # Flutter camelCase
 #     docType: Optional[str] = None
 #     docNumber: Optional[str] = None
 #     nameOnDocument: Optional[str] = None
 #     dateOfBirth: Optional[str] = None
 #     documentUrl: Optional[str] = None
 #     documentFrontUrl: Optional[str] = None
-#     documentBackUrl: Optional[str] = None
 #     selfieUrl: Optional[str] = None
 #     addressLine: Optional[str] = None
 #     documentExpiry: Optional[str] = None
@@ -92,7 +87,6 @@
 #         return False
 #     if a == b:
 #         return True
-#     # soft: all tokens of shorter name appear in longer
 #     ta, tb = set(a.split()), set(b.split())
 #     if not ta or not tb:
 #         return False
@@ -119,16 +113,10 @@
 #     extracted_dob: str,
 #     profile_name: str,
 # ) -> dict:
-#     """
-#     Compare user-filled data vs optional OCR extract + profile name.
-#     Does NOT read the image itself.
-#     """
 #     flags: List[str] = []
 #     checks = {}
 #
-#     has_extract = bool(
-#         extracted_name or extracted_doc_number or extracted_dob
-#     )
+#     has_extract = bool(extracted_name or extracted_doc_number or extracted_dob)
 #
 #     name_vs_extract = (
 #         _names_match(name_on_document, extracted_name) if extracted_name else None
@@ -139,7 +127,9 @@
 #     dob_vs_extract = (
 #         _dob_match(date_of_birth, extracted_dob) if extracted_dob else None
 #     )
-#     name_vs_profile = _names_match(name_on_document, profile_name) if profile_name else None
+#     name_vs_profile = (
+#         _names_match(name_on_document, profile_name) if profile_name else None
+#     )
 #
 #     checks["name_matches_extract"] = name_vs_extract
 #     checks["number_matches_extract"] = number_vs_extract
@@ -156,7 +146,6 @@
 #
 #     if name_vs_profile is False:
 #         flags.append("name_mismatch_profile")
-#
 #     if not name_on_document:
 #         flags.append("missing_name_on_document")
 #     if not doc_number:
@@ -164,21 +153,22 @@
 #     if not date_of_birth:
 #         flags.append("missing_dob")
 #
-#     # Score for admin UI (0–100)
 #     score_parts = []
 #     for v in (name_vs_extract, number_vs_extract, dob_vs_extract, name_vs_profile):
 #         if v is True:
 #             score_parts.append(1)
 #         elif v is False:
 #             score_parts.append(0)
-#     match_score = int(round(100 * sum(score_parts) / len(score_parts))) if score_parts else None
+#     match_score = (
+#         int(round(100 * sum(score_parts) / len(score_parts))) if score_parts else None
+#     )
 #
 #     if flags and any(f.endswith("_scan") for f in flags):
 #         match_status = "mismatch"
 #     elif has_extract and not flags:
 #         match_status = "matched"
 #     elif not has_extract:
-#         match_status = "manual_review"  # no OCR — admin checks images
+#         match_status = "manual_review"
 #     else:
 #         match_status = "partial"
 #
@@ -201,39 +191,98 @@
 #         return "gif"
 #     return "jpg"
 #
-#
 # async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
+#     """
+#     Supports:
+#       1) Raw body + Content-Type: image/jpeg (preferred on Workers)
+#       2) Multipart — manual parse (no python-multipart)
+#     """
 #     content_type = (request.headers.get("content-type") or "").lower()
-#
-#     if "multipart/form-data" in content_type:
-#         form = await request.form()
-#         file = (
-#             form.get("file")
-#             or form.get("photo")
-#             or form.get("image")
-#             or form.get("document")
-#         )
-#         if file is None:
-#             raise HTTPException(
-#                 status_code=400,
-#                 detail="No file field. Use: file | photo | image | document",
-#             )
-#         if hasattr(file, "read"):
-#             body = await file.read()
-#             ct = getattr(file, "content_type", None) or "image/jpeg"
-#         else:
-#             raise HTTPException(status_code=400, detail="Invalid file field")
-#         if not body:
-#             raise HTTPException(status_code=400, detail="Empty file")
-#         if not str(ct).startswith("image/"):
-#             ct = "image/jpeg"
-#         return body, str(ct)
-#
 #     body = await request.body()
+#
 #     if not body:
 #         raise HTTPException(status_code=400, detail="No file received")
-#     ct = content_type if content_type.startswith("image/") else "image/jpeg"
-#     return body, ct
+#
+#     # --- Preferred: raw image ---
+#     if content_type.startswith("image/") or "octet-stream" in content_type:
+#         ct = content_type if content_type.startswith("image/") else "image/jpeg"
+#         return body, ct
+#
+#     # --- Multipart without python-multipart ---
+#     if "multipart/form-data" in content_type:
+#         # boundary=....
+#         boundary = None
+#         for part in content_type.split(";"):
+#             part = part.strip()
+#             if part.startswith("boundary="):
+#                 boundary = part.split("=", 1)[1].strip().strip('"')
+#                 break
+#         if not boundary:
+#             raise HTTPException(status_code=400, detail="Missing multipart boundary")
+#
+#         delim = ("--" + boundary).encode("utf-8")
+#         chunks = body.split(delim)
+#
+#         for chunk in chunks:
+#             if not chunk or chunk in (b"--", b"--\r\n", b"\r\n"):
+#                 continue
+#             # strip leading CRLF
+#             if chunk.startswith(b"\r\n"):
+#                 chunk = chunk[2:]
+#             if chunk.endswith(b"\r\n"):
+#                 chunk = chunk[:-2]
+#             if chunk == b"--":
+#                 continue
+#
+#             # header / body split
+#             if b"\r\n\r\n" not in chunk:
+#                 continue
+#             header_blob, file_body = chunk.split(b"\r\n\r\n", 1)
+#             # trailing boundary markers
+#             if file_body.endswith(b"\r\n"):
+#                 file_body = file_body[:-2]
+#             if file_body.endswith(b"--"):
+#                 file_body = file_body[:-2]
+#             if file_body.endswith(b"\r\n"):
+#                 file_body = file_body[:-2]
+#
+#             headers = header_blob.decode("utf-8", errors="ignore").lower()
+#             # accept file | photo | image | document | any filename=
+#             if "filename=" not in headers and "name=\"file\"" not in headers:
+#                 if not any(
+#                     n in headers
+#                     for n in (
+#                         'name="file"',
+#                         'name="photo"',
+#                         'name="image"',
+#                         'name="document"',
+#                     )
+#                 ):
+#                     # still allow if it looks like a file part with filename
+#                     if "filename=" not in headers:
+#                         continue
+#
+#             ct = "image/jpeg"
+#             for line in headers.split("\r\n"):
+#                 if line.startswith("content-type:"):
+#                     ct = line.split(":", 1)[1].strip() or "image/jpeg"
+#                     break
+#
+#             if not file_body:
+#                 raise HTTPException(status_code=400, detail="Empty file")
+#             if not ct.startswith("image/"):
+#                 ct = "image/jpeg"
+#             return file_body, ct
+#
+#         raise HTTPException(
+#             status_code=400,
+#             detail="No file part in multipart. Use field file|photo|image|document",
+#         )
+#
+#     raise HTTPException(
+#         status_code=400,
+#         detail="Send image/* body or multipart/form-data with a file field",
+#     )
 #
 #
 # def _require_admin(request: Request, current_user: dict):
@@ -250,9 +299,13 @@
 #     raw_match = r.get("match_report")
 #     if raw_match:
 #         try:
-#             match_report = json.loads(raw_match) if isinstance(raw_match, str) else raw_match
+#             match_report = (
+#                 json.loads(raw_match) if isinstance(raw_match, str) else raw_match
+#             )
 #         except Exception:
 #             match_report = {}
+#
+#     doc_url = r.get("document_front_url") or r.get("document_url")
 #
 #     return {
 #         "status": st,
@@ -262,15 +315,18 @@
 #         "doc_number": r.get("doc_number"),
 #         "name_on_document": r.get("name_on_document"),
 #         "date_of_birth": r.get("date_of_birth"),
-#         "document_url": r.get("document_url") or r.get("document_front_url"),
-#         "document_front_url": r.get("document_front_url") or r.get("document_url"),
-#         "document_back_url": r.get("document_back_url"),
+#         "document_url": doc_url,
+#         "document_front_url": doc_url,
 #         "selfie_url": r.get("selfie_url"),
 #         "address_line": r.get("address_line"),
 #         "pincode": r.get("pincode"),
 #         "document_expiry": r.get("document_expiry"),
 #         "match_status": r.get("match_status") or match_report.get("match_status"),
-#         "match_score": r.get("match_score") if r.get("match_score") is not None else match_report.get("match_score"),
+#         "match_score": (
+#             r.get("match_score")
+#             if r.get("match_score") is not None
+#             else match_report.get("match_score")
+#         ),
 #         "match_flags": match_report.get("flags") or [],
 #         "match_checks": match_report.get("checks") or {},
 #         "updated_at": r.get("updated_at") or r.get("created_at"),
@@ -279,43 +335,64 @@
 #
 #
 # # ─────────────────────────────────────────────
-# # Upload to kyc/* R2 path (not profile)
+# # Upload — document (front) | selfie only
 # # ─────────────────────────────────────────────
 # @router.post("/kyc/upload")
 # async def kyc_upload(
 #     request: Request,
 #     current_user: dict = Depends(get_current_user),
-#     kind: str = Query("document", description="document | document_back | selfie"),
+#     kind: str = Query("document", description="document | selfie"),
 # ):
 #     """
-#     POST /api/kyc/upload?kind=document|document_back|selfie
-#     multipart field: file | photo | image | document
+#     POST /api/kyc/upload?kind=document|selfie
+#     multipart: file | photo | image | document
 #     """
 #     kind = (kind or "document").lower().strip()
 #     folder = {
 #         "document": "document",
 #         "front": "document",
 #         "document_front": "document",
-#         "document_back": "document_back",
-#         "back": "document_back",
 #         "selfie": "selfie",
 #     }.get(kind)
 #     if not folder:
 #         raise HTTPException(
 #             status_code=400,
-#             detail="kind must be document | document_back | selfie",
+#             detail="kind must be document or selfie",
 #         )
 #
-#     body, content_type = await _read_image_bytes(request)
+#     try:
+#         body, content_type = await _read_image_bytes(request)
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         raise HTTPException(status_code=400, detail=f"Could not read image: {e}")
+#
+#     if not body:
+#         raise HTTPException(status_code=400, detail="Empty file")
+#
 #     user_id = current_user["id"]
 #     ext = _ext_from_content_type(content_type)
 #     file_id = str(uuid.uuid4())[:8]
 #     key = f"kyc/{user_id}/{folder}/{file_id}.{ext}"
 #
-#     images = request.scope["env"].IMAGES
-#     await images.put(key, body, httpMetadata={"contentType": content_type})
-#     url = f"{R2_PUBLIC_URL}/{key}"
+#     env = request.scope.get("env")
+#     if env is None:
+#         raise HTTPException(status_code=500, detail="Worker env missing")
 #
+#     images = getattr(env, "IMAGES", None)
+#     if images is None:
+#         raise HTTPException(status_code=500, detail="R2 IMAGES binding not configured")
+#
+#     try:
+#         await images.put(
+#             key,
+#             body,
+#             httpMetadata={"contentType": content_type or "image/jpeg"},
+#         )
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"R2 upload failed: {e}")
+#
+#     url = f"{R2_PUBLIC_URL}/{key}"
 #     return {
 #         "kind": folder,
 #         "url": url,
@@ -347,7 +424,7 @@
 #
 #
 # # ─────────────────────────────────────────────
-# # Submit / resubmit
+# # Submit
 # # ─────────────────────────────────────────────
 # @router.post("/kyc", status_code=status.HTTP_201_CREATED)
 # async def submit_kyc(
@@ -355,11 +432,6 @@
 #     request: Request,
 #     current_user: dict = Depends(get_current_user),
 # ):
-#     """
-#     Submit KYC with filled fields + image URLs.
-#     Optional extracted_* fields = on-device OCR / scan; server compares to filled data.
-#     Does NOT auto-verify. Status stays pending for admin.
-#     """
 #     db = request.scope["env"].DB
 #     user_id = current_user["id"]
 #     profile_name = current_user.get("full_name") or ""
@@ -375,14 +447,15 @@
 #         or data.document_url
 #         or data.documentUrl
 #     )
-#     document_back = data.document_back_url or data.documentBackUrl
 #     selfie_url = data.selfie_url or data.selfieUrl
 #     address_line = (data.address_line or data.addressLine or "").strip() or None
 #     pincode = (data.pincode or "").strip() or None
 #     document_expiry = (data.document_expiry or data.documentExpiry or "").strip() or None
 #
 #     extracted_name = (data.extracted_name or data.extractedName or "").strip()
-#     extracted_doc_number = (data.extracted_doc_number or data.extractedDocNumber or "").strip()
+#     extracted_doc_number = (
+#         data.extracted_doc_number or data.extractedDocNumber or ""
+#     ).strip()
 #     extracted_dob = (data.extracted_dob or data.extractedDob or "").strip()
 #
 #     if not doc_type or doc_type not in ALLOWED_DOC_TYPES:
@@ -395,15 +468,18 @@
 #     if not name_on_document:
 #         raise HTTPException(status_code=400, detail="name_on_document is required")
 #     if not date_of_birth:
-#         raise HTTPException(status_code=400, detail="date_of_birth is required (YYYY-MM-DD)")
+#         raise HTTPException(
+#             status_code=400, detail="date_of_birth is required (YYYY-MM-DD)"
+#         )
 #     if not document_front:
-#         raise HTTPException(status_code=400, detail="document_front_url is required")
+#         raise HTTPException(status_code=400, detail="document_url is required")
 #     if not selfie_url:
 #         raise HTTPException(status_code=400, detail="selfie_url is required")
 #     if data.declaration_accepted is False:
-#         raise HTTPException(status_code=400, detail="declaration_accepted must be true")
+#         raise HTTPException(
+#             status_code=400, detail="declaration_accepted must be true"
+#         )
 #
-#     # Aadhaar / DL: back recommended (soft flag only)
 #     match_report = _build_match_report(
 #         name_on_document=name_on_document,
 #         doc_number=doc_number,
@@ -413,16 +489,6 @@
 #         extracted_dob=extracted_dob,
 #         profile_name=profile_name,
 #     )
-#     if doc_type in ("aadhaar", "driving_license") and not document_back:
-#         match_report.setdefault("flags", []).append("missing_document_back")
-#         if match_report.get("match_status") == "matched":
-#             match_report["match_status"] = "partial"
-#
-#     # Hard fail only when OCR provided AND critical mismatch
-#     hard = [f for f in match_report.get("flags", []) if f.endswith("_scan")]
-#     if hard:
-#         # Still allow submit, but mark mismatch for admin (do not block user)
-#         pass
 #
 #     existing = await db.prepare(
 #         "SELECT id, status FROM kyc WHERE user_id = ?"
@@ -445,7 +511,7 @@
 #                 date_of_birth = ?,
 #                 document_url = ?,
 #                 document_front_url = ?,
-#                 document_back_url = ?,
+#                 document_back_url = NULL,
 #                 selfie_url = ?,
 #                 address_line = ?,
 #                 pincode = ?,
@@ -465,7 +531,6 @@
 #             date_of_birth,
 #             document_front,
 #             document_front,
-#             document_back,
 #             selfie_url,
 #             address_line,
 #             pincode,
@@ -486,7 +551,7 @@
 #                 address_line, pincode, document_expiry,
 #                 match_status, match_score, match_report,
 #                 status
-#             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+#             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 'pending')
 #             """
 #         ).bind(
 #             kyc_id,
@@ -497,7 +562,6 @@
 #             date_of_birth,
 #             document_front,
 #             document_front,
-#             document_back,
 #             selfie_url,
 #             address_line,
 #             pincode,
@@ -665,7 +729,6 @@
 #         "rejection_reason": reason,
 #         "message": "KYC rejected",
 #     }
-
 
 
 from fastapi import APIRouter, Request, Depends, HTTPException, status, Query
@@ -861,6 +924,7 @@ def _ext_from_content_type(content_type: str) -> str:
         return "gif"
     return "jpg"
 
+
 async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
     """
     Supports:
@@ -880,7 +944,6 @@ async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
 
     # --- Multipart without python-multipart ---
     if "multipart/form-data" in content_type:
-        # boundary=....
         boundary = None
         for part in content_type.split(";"):
             part = part.strip()
@@ -896,7 +959,6 @@ async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
         for chunk in chunks:
             if not chunk or chunk in (b"--", b"--\r\n", b"\r\n"):
                 continue
-            # strip leading CRLF
             if chunk.startswith(b"\r\n"):
                 chunk = chunk[2:]
             if chunk.endswith(b"\r\n"):
@@ -904,11 +966,9 @@ async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
             if chunk == b"--":
                 continue
 
-            # header / body split
             if b"\r\n\r\n" not in chunk:
                 continue
             header_blob, file_body = chunk.split(b"\r\n\r\n", 1)
-            # trailing boundary markers
             if file_body.endswith(b"\r\n"):
                 file_body = file_body[:-2]
             if file_body.endswith(b"--"):
@@ -917,8 +977,7 @@ async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
                 file_body = file_body[:-2]
 
             headers = header_blob.decode("utf-8", errors="ignore").lower()
-            # accept file | photo | image | document | any filename=
-            if "filename=" not in headers and "name=\"file\"" not in headers:
+            if "filename=" not in headers and 'name="file"' not in headers:
                 if not any(
                     n in headers
                     for n in (
@@ -928,7 +987,6 @@ async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
                         'name="document"',
                     )
                 ):
-                    # still allow if it looks like a file part with filename
                     if "filename=" not in headers:
                         continue
 
@@ -961,6 +1019,13 @@ def _require_admin(request: Request, current_user: dict):
     allowed = {x.strip() for x in raw.split(",") if x.strip()}
     if not allowed or current_user["id"] not in allowed:
         raise HTTPException(status_code=403, detail="Admin only")
+
+
+async def _set_user_kyc_status(db, user_id: str, status_value: str):
+    """Keep users.kyc_status in sync with kyc table."""
+    await db.prepare(
+        "UPDATE users SET kyc_status = ? WHERE id = ?"
+    ).bind(status_value, user_id).run()
 
 
 def _row_to_status(r: dict) -> dict:
@@ -1241,6 +1306,9 @@ async def submit_kyc(
             match_json,
         ).run()
 
+    # Sync users table
+    await _set_user_kyc_status(db, user_id, "pending")
+
     return {
         "status": "pending",
         "verified": False,
@@ -1354,6 +1422,8 @@ async def admin_verify_kyc(
         """
     ).bind(current_user["id"], data.admin_note, user_id).run()
 
+    await _set_user_kyc_status(db, user_id, "verified")
+
     return {
         "user_id": user_id,
         "status": "verified",
@@ -1391,6 +1461,8 @@ async def admin_reject_kyc(
         WHERE user_id = ?
         """
     ).bind(reason, current_user["id"], data.admin_note, user_id).run()
+
+    await _set_user_kyc_status(db, user_id, "rejected")
 
     return {
         "user_id": user_id,
