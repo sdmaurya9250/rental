@@ -286,6 +286,7 @@ def _row_to_person(
         "age": None,
         "location": r.get("city") or "",
         "city": r.get("city") or "",
+        "country": r.get("country") or "",
         "lat": r.get("lat"),
         "lng": r.get("lng"),
         "isOnline": bool(r.get("is_available", 0)),
