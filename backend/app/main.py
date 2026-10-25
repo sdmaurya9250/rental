@@ -54,6 +54,7 @@ app.include_router(companion_services_router, prefix="/api", tags=["CompanionSer
 app.include_router(options_router, prefix="/api", tags=["Options"])
 app.include_router(booking_stats_router, prefix="/api", tags=["BookingStats"])
 app.include_router(response_rate_router, prefix="/api", tags=["ResponseRate"])
+app.include_router(response_rate_router, prefix="/api", tags=["ResponseRate"])
 app.include_router(payments_router, prefix="/api", tags=["Payments"])
 app.include_router(otp_auth_router, prefix="/api", tags=["Auth"])
 app.include_router(whatsapp_webhook_router, prefix="/api", tags=["WhatsApp"])
