@@ -359,7 +359,7 @@ NO_PARAM_TEMPLATES = {"hello_world", "hello world"}
 
 # Auth / OTP templates that take {{1}} = code (+ copy-code button)
 AUTH_OTP_TEMPLATES = {
-    "login_otp",
+    "logn_otp",
     "verify_code",
     "verify_code_1",
     "authentication_code",
@@ -498,7 +498,7 @@ async def _send_whatsapp_otp(request: Request, mobile: str, code: str):
     env = request.scope["env"]
     token = (getattr(env, "WHATSAPP_TOKEN", None) or "").strip()
     phone_id = (getattr(env, "WHATSAPP_PHONE_NUMBER_ID", None) or "").strip()
-    template = (getattr(env, "WHATSAPP_OTP_TEMPLATE", None) or "login_otp").strip()
+    template = (getattr(env, "WHATSAPP_OTP_TEMPLATE", None) or "logn_otp").strip()
     lang = (getattr(env, "WHATSAPP_OTP_LANG", None) or "en_US").strip()
 
     if not token or not phone_id:
