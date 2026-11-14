@@ -499,7 +499,7 @@ async def _send_whatsapp_otp(request: Request, mobile: str, code: str):
     token = (getattr(env, "WHATSAPP_TOKEN", None) or "").strip()
     phone_id = (getattr(env, "WHATSAPP_PHONE_NUMBER_ID", None) or "").strip()
     template = (getattr(env, "WHATSAPP_OTP_TEMPLATE", None) or "logn_otp").strip()
-    lang = (getattr(env, "WHATSAPP_OTP_LANG", None) or "en_US").strip()
+    lang = (getattr(env, "WHATSAPP_OTP_LANG", None) or "en").strip()
 
     if not token or not phone_id:
         raise HTTPException(status_code=500, detail="WhatsApp not configured")
@@ -516,7 +516,7 @@ async def _send_whatsapp_otp(request: Request, mobile: str, code: str):
         # Meta sample — no OTP in message
         template_obj = {
             "name": "hello_world",
-            "language": {"code": "en_US"},
+            "language": {"code": "en"},
         }
     elif t_lower in AUTH_OTP_TEMPLATES or t_lower.endswith("_otp") or "otp" in t_lower:
         # Authentication OTP (login_otp, etc.)
