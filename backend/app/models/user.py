@@ -1,5 +1,8 @@
+#
+#
+#
 # from pydantic import BaseModel, Field
-# from typing import Literal, List, Optional, Union
+# from typing import Literal, List, Optional, Union, Any, Dict
 #
 #
 # class PreferredLocation(BaseModel):
@@ -71,6 +74,12 @@
 #     duration: Optional[str] = None
 #     locations: Optional[List[str]] = None
 #     preferred_locations: Optional[List[PreferredLocation]] = None
+#     # per-service — required so PATCH does not strip them
+#     interests: Optional[List[str]] = None
+#     available_time: Optional[Dict[str, Any]] = None
+#     availableTime: Optional[Dict[str, Any]] = None
+#     time_slots: Optional[List[Any]] = None
+#     timeSlots: Optional[List[Any]] = None
 #
 #
 # class ProfileUpdate(BaseModel):
@@ -139,7 +148,7 @@
 #
 #
 # class WalletTopUpRequest(BaseModel):
-#     amount: float = Field(..., ge=1)  # match payments min top-up
+#     amount: float = Field(..., ge=1)
 #     method: Optional[str] = "UPI"
 #
 #
@@ -190,6 +199,11 @@
 #     title: Optional[str] = None
 #     locations: Optional[List[str]] = None
 #     preferred_locations: Optional[List[PreferredLocation]] = None
+#     interests: Optional[List[str]] = None
+#     available_time: Optional[Dict[str, Any]] = None
+#     availableTime: Optional[Dict[str, Any]] = None
+#     time_slots: Optional[List[Any]] = None
+#     timeSlots: Optional[List[Any]] = None
 #
 #
 # class CompanionServicesReplace(BaseModel):
@@ -223,8 +237,10 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: str
-    password: str
+    """Login with email+password OR mobile+password."""
+    email: Optional[str] = None
+    mobile: Optional[str] = None
+    password: str = Field(..., min_length=6)
 
 
 class FeedRequest(BaseModel):
@@ -269,7 +285,6 @@ class ServiceItem(BaseModel):
     duration: Optional[str] = None
     locations: Optional[List[str]] = None
     preferred_locations: Optional[List[PreferredLocation]] = None
-    # per-service — required so PATCH does not strip them
     interests: Optional[List[str]] = None
     available_time: Optional[Dict[str, Any]] = None
     availableTime: Optional[Dict[str, Any]] = None
