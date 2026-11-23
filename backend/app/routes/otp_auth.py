@@ -1207,34 +1207,31 @@
 #             detail=f"Verify failed: {type(e).__name__}: {e}",
 #         )
 
-
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
 import secrets
 import hashlib
 import hmac
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from utils.security import create_access_token
 
 router = APIRouter()
 
 OTP_TTL_SEC = 300
 OTP_MAX_ATTEMPTS = 5
-OTP_RESEND_COOLDOWN_SEC = 45
 
 NO_PARAM_TEMPLATES = {"hello_world", "hello world"}
 
 AUTH_OTP_TEMPLATES = {
     "login_otp",
     "logn_otp",
+    "signup_verification_otp",
     "verify_code",
     "verify_code_1",
     "authentication_code",
     "otp_verification",
-    "signup_verification_otp",
 }
 
 
@@ -1259,25 +1256,6 @@ class OtpVerifyRequest(BaseModel):
     lng: Optional[float] = None
 
 
-# --------------------------------------------------------------------------
-# Helpers
-# --------------------------------------------------------------------------
-
-def _utcnow() -> datetime:
-    """Naive UTC datetime (keeps compatibility with already-stored values)."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
-def _parse_dt(value) -> Optional[datetime]:
-    try:
-        dt = datetime.fromisoformat(str(value).replace("Z", ""))
-        if dt.tzinfo is not None:
-            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-        return dt
-    except Exception:
-        return None
-
-
 def _normalize_mobile(raw: str) -> str:
     s = re.sub(r"[^\d+]", "", (raw or "").strip())
     if s.startswith("00"):
@@ -1291,38 +1269,12 @@ def _normalize_mobile(raw: str) -> str:
     return s
 
 
-def _hash_otp(code: str, salt: str, secret: str = "") -> str:
-    """HMAC with server secret if OTP_SECRET is set, else salted SHA-256."""
-    msg = f"{salt}:{code}".encode()
-    if secret:
-        return hmac.new(secret.encode(), msg, hashlib.sha256).hexdigest()
-    return hashlib.sha256(msg).hexdigest()
-
-
-def _otp_secret(request: Request) -> str:
-    env = request.scope["env"]
-    return (getattr(env, "OTP_SECRET", None) or "").strip()
+def _hash_otp(code: str, salt: str) -> str:
+    return hashlib.sha256(f"{salt}:{code}".encode()).hexdigest()
 
 
 def _digits_only(mobile: str) -> str:
     return re.sub(r"\D", "", mobile or "")
-
-
-def _wa_error(data) -> tuple[Optional[int], str]:
-    """Extract (code, message) from a Graph API error payload."""
-    err = {}
-    if isinstance(data, dict):
-        err = data.get("error") or data
-    if isinstance(err, dict):
-        code = err.get("code")
-        msg = err.get("message") or "WhatsApp send failed"
-        details = (err.get("error_data") or {}).get("details")
-        if details:
-            msg = f"{msg} - {details}"
-        if code:
-            msg = f"({code}) {msg}"
-        return code, msg
-    return None, str(data) or "WhatsApp send failed"
 
 
 async def _http_json(
@@ -1374,8 +1326,6 @@ async def _http_json(
 
 
 def _build_auth_otp_template(name: str, lang: str, code: str) -> dict:
-    # Authentication templates need BOTH the body param and the
-    # copy-code / URL button param.
     return {
         "name": name,
         "language": {"code": lang},
@@ -1394,13 +1344,13 @@ def _build_auth_otp_template(name: str, lang: str, code: str) -> dict:
     }
 
 
-async def _send_whatsapp_otp(request: Request, mobile: str, code: str) -> Optional[str]:
-    """Send OTP over WhatsApp. Returns the WhatsApp message id (wamid)."""
+async def _send_whatsapp_otp(request: Request, mobile: str, code: str):
     env = request.scope["env"]
     token = (getattr(env, "WHATSAPP_TOKEN", None) or "").strip()
     phone_id = (getattr(env, "WHATSAPP_PHONE_NUMBER_ID", None) or "").strip()
-    template = (getattr(env, "WHATSAPP_OTP_TEMPLATE", None) or "login_otp").strip()
-    # Must match the template's language EXACTLY as shown in Meta (en vs en_US)
+    template = (
+        getattr(env, "WHATSAPP_OTP_TEMPLATE", None) or "signup_verification_otp"
+    ).strip()
     lang = (getattr(env, "WHATSAPP_OTP_LANG", None) or "en").strip()
 
     if not token or not phone_id:
@@ -1443,12 +1393,10 @@ async def _send_whatsapp_otp(request: Request, mobile: str, code: str) -> Option
         }
         code_http, data = await _http_json("POST", url, headers, body)
         if code_http >= 400:
-            _, msg = _wa_error(data)
-            print(f"WA send FAILED (text) to={to} http={code_http} resp={data}")
-            raise HTTPException(status_code=502, detail=msg)
-        wa_id = ((data.get("messages") or [{}])[0]).get("id") if isinstance(data, dict) else None
-        print(f"WA send ok (text) to={to} wamid={wa_id}")
-        return wa_id
+            err = (data.get("error") if isinstance(data, dict) else None) or data
+            msg = err.get("message") if isinstance(err, dict) else str(data)
+            raise HTTPException(status_code=502, detail=msg or "WhatsApp send failed")
+        return data
 
     body = {
         "messaging_product": "whatsapp",
@@ -1460,74 +1408,35 @@ async def _send_whatsapp_otp(request: Request, mobile: str, code: str) -> Option
 
     code_http, data = await _http_json("POST", url, headers, body)
     if code_http >= 400:
-        # No silent fallback: auth templates REQUIRE the button component,
-        # so retrying with body-only would only hide the real error.
-        err_code, msg = _wa_error(data)
-        print(
-            f"WA send FAILED template={template_obj['name']} "
-            f"lang={template_obj['language']['code']} to={to} "
-            f"http={code_http} resp={data}"
-        )
-        if err_code == 132001:
-            msg += (
-                f" [template '{template_obj['name']}' / language "
-                f"'{template_obj['language']['code']}' not found for this phone "
-                f"number's WhatsApp Business Account]"
-            )
-        raise HTTPException(status_code=502, detail=msg)
+        err = {}
+        if isinstance(data, dict):
+            err = data.get("error") or data
+        msg = err.get("message") if isinstance(err, dict) else str(data)
+        if (
+            code_http >= 400
+            and isinstance(err, dict)
+            and template_obj.get("components")
+            and len(template_obj["components"]) > 1
+        ):
+            template_obj = {
+                "name": template_obj["name"],
+                "language": template_obj["language"],
+                "components": [
+                    {
+                        "type": "body",
+                        "parameters": [{"type": "text", "text": str(code)}],
+                    }
+                ],
+            }
+            body["template"] = template_obj
+            code_http, data = await _http_json("POST", url, headers, body)
+            if code_http < 400:
+                return data
+            err = (data.get("error") if isinstance(data, dict) else None) or data
+            msg = err.get("message") if isinstance(err, dict) else str(data)
+        raise HTTPException(status_code=502, detail=msg or "WhatsApp send failed")
+    return data
 
-    wa_id = ((data.get("messages") or [{}])[0]).get("id") if isinstance(data, dict) else None
-    print(f"WA send ok template={template_obj['name']} to={to} wamid={wa_id}")
-    return wa_id
-
-
-# --------------------------------------------------------------------------
-# WhatsApp webhook (verification + delivery status)
-# --------------------------------------------------------------------------
-
-@router.get("/webhook/whatsapp")
-async def whatsapp_webhook_verify(request: Request):
-    q = request.query_params
-    env = request.scope["env"]
-    verify_token = (getattr(env, "WHATSAPP_VERIFY_TOKEN", None) or "").strip()
-    if (
-        q.get("hub.mode") == "subscribe"
-        and verify_token
-        and q.get("hub.verify_token") == verify_token
-    ):
-        return PlainTextResponse(q.get("hub.challenge") or "")
-    raise HTTPException(status_code=403, detail="Verification failed")
-
-
-@router.post("/webhook/whatsapp")
-async def whatsapp_webhook_events(request: Request):
-    try:
-        body = await request.json()
-    except Exception:
-        return {"ok": True}
-
-    try:
-        for entry in body.get("entry", []):
-            for change in entry.get("changes", []):
-                value = change.get("value", {})
-                for st in value.get("statuses", []):
-                    status = st.get("status")  # sent / delivered / read / failed
-                    print(
-                        f"WA status wamid={st.get('id')} to={st.get('recipient_id')} "
-                        f"status={status}"
-                    )
-                    if status == "failed":
-                        print(f"WA delivery FAILED errors={st.get('errors')}")
-    except Exception as e:
-        print(f"WA webhook parse error: {e}")
-
-    # Always 200 quickly, otherwise Meta keeps retrying
-    return {"ok": True}
-
-
-# --------------------------------------------------------------------------
-# OTP endpoints
-# --------------------------------------------------------------------------
 
 @router.post("/auth/otp/send")
 async def otp_send(data: OtpSendRequest, request: Request):
@@ -1550,30 +1459,10 @@ async def otp_send(data: OtpSendRequest, request: Request):
             detail="Mobile already registered. Please login.",
         )
 
-    # ---- Resend cooldown (prevents WhatsApp spam / cost abuse) ----
-    last = await db.prepare(
-        """
-        SELECT created_at FROM otp_codes
-        WHERE mobile = ? AND purpose = ?
-        ORDER BY created_at DESC LIMIT 1
-        """
-    ).bind(mobile, purpose).first()
-    if last:
-        last_dt = _parse_dt(dict(last).get("created_at"))
-        if last_dt:
-            elapsed = (_utcnow() - last_dt).total_seconds()
-            if 0 <= elapsed < OTP_RESEND_COOLDOWN_SEC:
-                wait = int(OTP_RESEND_COOLDOWN_SEC - elapsed) + 1
-                raise HTTPException(
-                    status_code=429,
-                    detail=f"Please wait {wait}s before requesting another OTP.",
-                )
-
-    now = _utcnow()
     code = f"{secrets.randbelow(10**6):06d}"
     salt = secrets.token_hex(8)
-    code_hash = _hash_otp(code, salt, _otp_secret(request))
-    expires = (now + timedelta(seconds=OTP_TTL_SEC)).isoformat()
+    code_hash = _hash_otp(code, salt)
+    expires = (datetime.utcnow() + timedelta(seconds=OTP_TTL_SEC)).isoformat()
     otp_id = secrets.token_hex(8)
 
     await db.prepare(
@@ -1585,30 +1474,18 @@ async def otp_send(data: OtpSendRequest, request: Request):
 
     await db.prepare(
         """
-        INSERT INTO otp_codes (id, mobile, purpose, code_hash, expires_at, attempts, consumed, created_at)
-        VALUES (?, ?, ?, ?, ?, 0, 0, ?)
+        INSERT INTO otp_codes (id, mobile, purpose, code_hash, expires_at, attempts, consumed)
+        VALUES (?, ?, ?, ?, ?, 0, 0)
         """
-    ).bind(otp_id, mobile, purpose, f"{salt}:{code_hash}", expires, now.isoformat()).run()
+    ).bind(otp_id, mobile, purpose, f"{salt}:{code_hash}", expires).run()
 
-    try:
-        wa_id = await _send_whatsapp_otp(request, mobile, code)
-    except Exception:
-        # Send failed: invalidate this OTP so it can't linger unused
-        try:
-            await db.prepare(
-                "UPDATE otp_codes SET consumed = 1 WHERE id = ?"
-            ).bind(otp_id).run()
-        except Exception:
-            pass
-        raise
+    await _send_whatsapp_otp(request, mobile, code)
 
     return {
         "message": "OTP sent on WhatsApp",
         "mobile": mobile,
         "purpose": purpose,
         "expires_in": OTP_TTL_SEC,
-        "resend_after": OTP_RESEND_COOLDOWN_SEC,
-        "wa_message_id": wa_id,
     }
 
 
@@ -1639,11 +1516,12 @@ async def otp_verify(data: OtpVerifyRequest, request: Request):
             detail="Too many attempts. Request a new OTP.",
         )
 
-    exp = _parse_dt(r.get("expires_at"))
-    if exp is None:
+    try:
+        exp = datetime.fromisoformat(str(r["expires_at"]).replace("Z", ""))
+    except Exception:
         raise HTTPException(status_code=400, detail="OTP expired. Request a new one.")
 
-    if _utcnow() > exp:
+    if datetime.utcnow() > exp:
         raise HTTPException(
             status_code=400,
             detail="OTP expired. Request a new one.",
@@ -1657,7 +1535,7 @@ async def otp_verify(data: OtpVerifyRequest, request: Request):
             detail="Invalid OTP record. Request a new one.",
         )
 
-    if not hmac.compare_digest(_hash_otp(otp, salt, _otp_secret(request)), stored_hash):
+    if not hmac.compare_digest(_hash_otp(otp, salt), stored_hash):
         await db.prepare(
             "UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?"
         ).bind(r["id"]).run()
@@ -1705,7 +1583,6 @@ async def otp_verify(data: OtpVerifyRequest, request: Request):
                         detail="Email already registered. Use another email or login.",
                     )
 
-            # No password_hash — column does not exist on users table
             try:
                 await db.prepare(
                     """
