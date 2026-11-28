@@ -5,42 +5,25 @@ from routes.profile import get_current_user
 from routes.notifications import create_notification
 from pydantic import BaseModel, Field
 from typing import Optional
-import json
-import re
 import secrets
 import random
-from datetime import datetime, timedelta, timezone
+import json
+from datetime import datetime
 
-from routes.safety import (
-    ensure_tables,
-    is_blocked_between,
-    is_kyc_verified,
-    is_suspended,
-    place_is_blocked,
-)
+from utils.booking_rules import find_service, validate_venue
 
 router = APIRouter()
 
 PLATFORM_FEE_RATE = 0.10  # 10%
-
-IST = timezone(timedelta(hours=5, minutes=30))
-MIN_LEAD_MINUTES = 120          # same-day allowed, but at least 2h from now
-MAX_DAYS_AHEAD = 60
-DAY_START_MIN = 10 * 60         # 10:00
-DAY_END_MIN = 22 * 60           # 22:00
-MIN_DURATION_MIN = 60
-MAX_DURATION_MIN = 240
-RESPONSE_HOURS = 2              # companion must reply, else auto-refund
-MAX_OTP_ATTEMPTS = 5
-
+PENDING_EXPIRY_HOURS = 24     # unanswered request -> expired + refunded
+MAX_OTP_ATTEMPTS = 5          # wrong OTP tries per booking
+REQUIRE_COMPANION_KYC = True  # companion must have verified ID
 
 class VerifyOtpRequest(BaseModel):
     otp: str = Field(..., min_length=6, max_length=6)
 
-
 def _generate_otp() -> str:
     return f"{random.randint(100000, 999999)}"
-
 
 def _calc_fees(price: int | float) -> tuple[int, int, int]:
     """
@@ -57,7 +40,6 @@ def _calc_fees(price: int | float) -> tuple[int, int, int]:
     companion_earning = max(price - platform_fee, 0)
     return price, platform_fee, total_amount, companion_earning
 
-
 async def _get_balances(db, user_id: str) -> tuple[float, float]:
     row = await db.prepare(
         "SELECT wallet_balance, wallet_held FROM users WHERE id = ?"
@@ -66,7 +48,6 @@ async def _get_balances(db, user_id: str) -> tuple[float, float]:
         raise HTTPException(status_code=404, detail="User not found")
     u = dict(row)
     return float(u.get("wallet_balance") or 0), float(u.get("wallet_held") or 0)
-
 
 async def hold_for_booking(
     db,
@@ -104,15 +85,29 @@ async def hold_for_booking(
             },
         )
 
-    await db.prepare(
+    # Conditional update: two parallel requests cannot spend the same money.
+    moved = await db.prepare(
         """
         UPDATE users
         SET wallet_balance = COALESCE(wallet_balance, 0) - ?,
             wallet_held = COALESCE(wallet_held, 0) + ?,
             total_spent = COALESCE(total_spent, 0) + ?
-        WHERE id = ?
+        WHERE id = ? AND COALESCE(wallet_balance, 0) >= ?
+        RETURNING id
         """
-    ).bind(amount, amount, amount, user_id).run()
+    ).bind(amount, amount, amount, user_id, amount).first()
+    if not moved:
+        available, _held = await _get_balances(db, user_id)
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INSUFFICIENT_BALANCE",
+                "message": "Insufficient wallet balance",
+                "booking_amount": amount,
+                "available_balance": available,
+                "amount_needed": round(max(amount - available, 0), 2),
+            },
+        )
 
     tx_id = secrets.token_hex(8)
     await db.prepare(
@@ -131,7 +126,6 @@ async def hold_for_booking(
         booking_id,
     ).run()
     return tx_id
-
 
 async def release_to_companion(
     db,
@@ -200,7 +194,6 @@ async def release_to_companion(
         ).run()
     return True
 
-
 async def refund_hold(
     db,
     user_id: str,
@@ -253,6 +246,57 @@ async def refund_hold(
         booking_id,
     ).run()
     return tx_id
+
+async def _companion_kyc_verified(db, user_id: str) -> bool:
+    try:
+        row = await db.prepare(
+            "SELECT status FROM kyc WHERE user_id = ? ORDER BY rowid DESC LIMIT 1"
+        ).bind(user_id).first()
+    except Exception:
+        return False
+    return bool(row) and str(dict(row).get("status") or "").lower() == "verified"
+
+
+def _age_hours(created_at) -> float:
+    try:
+        t = datetime.strptime(str(created_at)[:19], "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return 0.0
+    return (datetime.utcnow() - t).total_seconds() / 3600.0
+
+
+async def _expire_if_stale(db, booking: dict) -> bool:
+    """Pending too long -> expired + refund. True if it expired now."""
+    if booking.get("status") != "pending":
+        return False
+    if _age_hours(booking.get("created_at")) < PENDING_EXPIRY_HOURS:
+        return False
+    done = await db.prepare(
+        "UPDATE bookings SET status = ?, payment_status = ? WHERE id = ? AND status = ? RETURNING id"
+    ).bind("expired", "refunded", booking["id"], "pending").first()
+    if not done:
+        return False
+    await refund_hold(
+        db,
+        user_id=booking["customer_id"],
+        amount=float(booking.get("total_amount") or 0),
+        booking_id=booking["id"],
+        reason="Booking expired - amount refunded",
+    )
+    try:
+        await create_notification(
+            db,
+            user_id=booking["customer_id"],
+            title="Booking expired",
+            body="The companion did not respond in time. Your money was refunded.",
+            type="booking",
+            data={"booking_id": booking["id"]},
+        )
+    except Exception:
+        pass
+    booking["status"] = "expired"
+    booking["payment_status"] = "refunded"
+    return True
 
 
 def _format_booking(row: dict, current_user_id: str) -> dict:
@@ -310,184 +354,25 @@ def _format_booking(row: dict, current_user_id: str) -> dict:
         "needs_otp_entry": is_incoming and show_otp,
     }
 
-
-def _slug(text: str) -> str:
-    return re.sub(r"^-|-$", "", re.sub(r"[^a-z0-9]+", "-", (text or "").lower()))
-
-
-def _parse_services(raw) -> list:
-    if isinstance(raw, list):
-        return raw
-    try:
-        parsed = json.loads(raw or "[]")
-        return parsed if isinstance(parsed, list) else []
-    except Exception:
-        return []
-
-
-def _find_service(services: list, service_id, service_name):
-    sid = (service_id or "").strip()
-    name = (service_name or "").strip().lower()
-    for sv in services:
-        if isinstance(sv, dict) and sid and str(sv.get("id") or "") == sid:
-            return sv
-    for sv in services:
-        if not isinstance(sv, dict):
-            continue
-        n = str(sv.get("name") or sv.get("title") or "").strip().lower()
-        if name and n == name:
-            return sv
-        if sid and _slug(n) == sid:
-            return sv
-    return None
-
-
-def _hm_to_min(value: str) -> int:
-    h, m = str(value).strip().split(":")[:2]
-    return int(h) * 60 + int(m)
-
-
-def _min_to_hm(total: int) -> str:
-    return f"{total // 60:02d}:{total % 60:02d}"
-
-
-def _start_dt(booking_date: str, start_time: str) -> datetime:
-    day = datetime.strptime(booking_date, "%Y-%m-%d").replace(tzinfo=IST)
-    return day + timedelta(minutes=_hm_to_min(start_time))
-
-
-def _validate_schedule(data) -> tuple[int, int]:
-    """Returns (start_min, end_min). Raises 400 on any rule break."""
-    try:
-        start_min = _hm_to_min(data.start_time)
-        start_dt = _start_dt(data.booking_date, data.start_time)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid date or time")
-
-    dur = int(data.duration_minutes)
-    if dur < MIN_DURATION_MIN:
-        raise HTTPException(status_code=400, detail="Minimum booking is 1 hour")
-    if dur > MAX_DURATION_MIN:
-        raise HTTPException(status_code=400, detail="Maximum booking is 4 hours")
-
-    end_min = start_min + dur
-    if start_min < DAY_START_MIN or end_min > DAY_END_MIN:
-        raise HTTPException(
-            status_code=400,
-            detail="Meetups must be between 10:00 AM and 10:00 PM",
-        )
-
-    now = datetime.now(IST)
-    if start_dt < now + timedelta(minutes=MIN_LEAD_MINUTES):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Please book at least {MIN_LEAD_MINUTES // 60} hours ahead",
-        )
-    if start_dt > now + timedelta(days=MAX_DAYS_AHEAD):
-        raise HTTPException(status_code=400, detail="That date is too far ahead")
-    return start_min, end_min
-
-
-def _create_response(
-    booking_id: str,
-    *,
-    status_text: str = "pending",
-    payment_status: str = "held",
-    booking_date=None,
-    start_time=None,
-    end_time=None,
-    price=0,
-    platform_fee=0,
-    total_amount=0,
-    companion_earning=0,
-    rent_person_id=None,
-    message: str = "Booking created. Amount held from wallet.",
-) -> dict:
-    return {
-        "id": booking_id,
-        "status": status_text,
-        "booking_status": status_text,
-        "payment_status": payment_status,
-        "message": message,
-        "booking_date": booking_date,
-        "start_time": start_time,
-        "end_time": end_time,
-        "price": price,
-        "platform_fee": platform_fee,
-        "platform_fee_percent": 10,
-        "total_amount": total_amount,
-        "companion_earning": companion_earning,
-        "rent_person_id": rent_person_id,
-        "response_deadline_hours": RESPONSE_HOURS,
-    }
-
-
-async def _existing_booking_response(db, booking_id: str) -> dict:
-    row = await db.prepare("SELECT * FROM bookings WHERE id = ?").bind(booking_id).first()
-    if not row:
-        raise HTTPException(status_code=409, detail="This booking is already being processed")
-    b = dict(row)
+def _create_response(b: dict, replay: bool = False) -> dict:
     price = float(b.get("price") or 0)
     fee = float(b.get("platform_fee") or 0)
-    return _create_response(
-        booking_id,
-        status_text=b.get("status") or "pending",
-        payment_status=b.get("payment_status") or "held",
-        booking_date=b.get("booking_date"),
-        start_time=b.get("start_time"),
-        end_time=b.get("end_time"),
-        price=price,
-        platform_fee=fee,
-        total_amount=b.get("total_amount") or 0,
-        companion_earning=max(price - fee, 0),
-        rent_person_id=b.get("rent_person_id"),
-        message="Booking already created.",
-    )
-
-
-async def expire_stale_bookings(db, user_id: str | None = None) -> int:
-    """Pending requests nobody answered within RESPONSE_HOURS are cancelled and refunded."""
-    sql = (
-        "SELECT id, customer_id, rent_person_id, total_amount FROM bookings "
-        "WHERE status = 'pending' AND created_at <= datetime('now', ?)"
-    )
-    params = [f"-{RESPONSE_HOURS} hours"]
-    if user_id:
-        sql += " AND (customer_id = ? OR rent_person_id = ?)"
-        params += [user_id, user_id]
-    rows = await db.prepare(sql).bind(*params).all()
-    items = rows.results if hasattr(rows, "results") else rows
-
-    done = 0
-    for r in items:
-        b = dict(r)
-        try:
-            await db.prepare(
-                "UPDATE bookings SET status = 'cancelled', payment_status = 'refunded', "
-                "cancellation_message = ? WHERE id = ? AND status = 'pending'"
-            ).bind("Expired: companion did not respond in time", b["id"]).run()
-            await refund_hold(
-                db,
-                user_id=b["customer_id"],
-                amount=float(b.get("total_amount") or 0),
-                booking_id=b["id"],
-                reason="Request expired — amount refunded",
-            )
-            try:
-                await create_notification(
-                    db,
-                    user_id=b["customer_id"],
-                    title="Request expired",
-                    body="The companion did not reply in time. Your money was refunded.",
-                    type="booking",
-                    data={"booking_id": b["id"]},
-                )
-            except Exception:
-                pass
-            done += 1
-        except Exception:
-            continue
-    return done
+    return {
+        "id": b["id"],
+        "status": b.get("status") or "pending",
+        "booking_status": b.get("status") or "pending",
+        "payment_status": b.get("payment_status") or "held",
+        "message": "Booking already created." if replay else "Booking created. Amount held from wallet.",
+        "booking_date": b.get("booking_date"),
+        "start_time": b.get("start_time"),
+        "end_time": b.get("end_time"),
+        "price": price,
+        "platform_fee": fee,
+        "platform_fee_percent": 10,
+        "total_amount": b.get("total_amount") or 0,
+        "companion_earning": max(price - fee, 0),
+        "rent_person_id": b.get("rent_person_id"),
+    }
 
 
 @router.post("/bookings", status_code=status.HTTP_201_CREATED)
@@ -497,162 +382,100 @@ async def create_booking(
     current_user: dict = Depends(get_current_user),
 ):
     db = request.scope["env"].DB
-    await ensure_tables(db)
     customer_id = current_user["id"]
 
     if data.rent_person_id == customer_id:
         raise HTTPException(status_code=400, detail="You cannot book yourself")
 
-    if await is_suspended(db, customer_id):
-        raise HTTPException(
-            status_code=403,
-            detail="Your account is under review. Please contact support.",
-        )
+    # Same key again = same booking. Protects against double taps and retries.
+    key = (data.idempotency_key or "").strip() or None
+    if key:
+        prev = await db.prepare(
+            "SELECT * FROM bookings WHERE customer_id = ? AND idempotency_key = ?"
+        ).bind(customer_id, key).first()
+        if prev:
+            return _create_response(dict(prev), replay=True)
 
     person = await db.prepare(
-        "SELECT id, full_name, want_to, services FROM users WHERE id = ?"
+        "SELECT id, full_name, services FROM users WHERE id = ?"
     ).bind(data.rent_person_id).first()
+
     if not person:
         raise HTTPException(status_code=404, detail="RentPeople not found")
+
     person = dict(person)
 
-    # Retry of the same request (double tap / connection drop): return the same booking.
-    idem = (data.idempotency_key or "").strip()[:120] or None
-    if idem:
-        existing = await db.prepare(
-            "SELECT booking_id FROM booking_idempotency WHERE idem_key = ? AND user_id = ?"
-        ).bind(idem, customer_id).first()
-        if existing:
-            bid = dict(existing).get("booking_id")
-            if bid:
-                return await _existing_booking_response(db, bid)
-            raise HTTPException(status_code=409, detail="This booking is already being processed")
+    if data.duration_minutes < 60 or data.duration_minutes > 240:
+        raise HTTPException(status_code=400, detail="Duration must be 1 to 4 hours")
 
-    # ── who can be booked ──
-    role = str(person.get("want_to") or "").strip().lower()
-    if not (role in ("companion", "both") or "become" in role):
-        raise HTTPException(status_code=400, detail="This user is not a companion")
-    if not await is_kyc_verified(db, data.rent_person_id):
+    if data.location_type == "in_person" and not (data.location or "").strip():
         raise HTTPException(
             status_code=400,
-            detail="This companion is not ID-verified yet",
+            detail="Location is required for in-person bookings",
         )
-    if await is_suspended(db, data.rent_person_id):
-        raise HTTPException(status_code=400, detail="This companion is not available")
-    if await is_blocked_between(db, customer_id, data.rent_person_id):
-        raise HTTPException(status_code=403, detail="You cannot book this companion")
 
-    # ── when ──
-    start_min, end_min = _validate_schedule(data)
-    start_time = _min_to_hm(start_min)
-    end_time = _min_to_hm(end_min)
+    if REQUIRE_COMPANION_KYC and not await _companion_kyc_verified(db, data.rent_person_id):
+        raise HTTPException(
+            status_code=400,
+            detail="This companion has not completed ID verification yet.",
+        )
 
-    clash = await db.prepare(
-        "SELECT start_time, end_time FROM bookings "
-        "WHERE rent_person_id = ? AND booking_date = ? "
-        "AND status IN ('pending', 'approved')"
-    ).bind(data.rent_person_id, data.booking_date).all()
-    for r in (clash.results if hasattr(clash, "results") else clash):
-        c = dict(r)
-        try:
-            if start_min < _hm_to_min(c["end_time"]) and _hm_to_min(c["start_time"]) < end_min:
-                raise HTTPException(
-                    status_code=400,
-                    detail="The companion already has a booking at this time",
-                )
-        except HTTPException:
-            raise
-        except Exception:
-            continue
-
-    # ── what and how much (server decides, phone values are ignored) ──
-    services = _parse_services(person.get("services"))
-    svc = _find_service(services, data.service_id, data.service_name)
-    if not svc:
+    # Price comes from the companion's saved service, never from the client.
+    try:
+        services = json.loads(person.get("services") or "[]")
+    except Exception:
+        services = []
+    service = find_service(services if isinstance(services, list) else [], data.service_id, data.service_name)
+    if not service:
         raise HTTPException(status_code=400, detail="This service is not offered by the companion")
     try:
-        rate = int(svc.get("price") or 0)
+        rate = float(service.get("price") or 0)
     except (TypeError, ValueError):
         rate = 0
     if rate <= 0:
-        raise HTTPException(status_code=400, detail="This companion has no price set yet")
-    price, platform_fee, total_amount, companion_earning = _calc_fees(
-        int(rate * int(data.duration_minutes) / 60 + 0.5)
-    )
-    service_name = str(svc.get("name") or svc.get("title") or data.service_name or "")
-    service_id = str(svc.get("id") or data.service_id or "")
+        raise HTTPException(status_code=400, detail="This companion has not set a price for this service")
 
-    # ── where ──
-    location = (data.location or "").strip()
-    if data.location_type == "in_person":
-        if not location:
-            raise HTTPException(status_code=400, detail="Location is required for in-person bookings")
-        if place_is_blocked(location, data.place_category):
-            raise HTTPException(
-                status_code=400,
-                detail="Please choose a public place such as a cafe, mall or park",
-            )
-        preferred = [
-            str(x.get("name") or "").strip().lower()
-            for x in (svc.get("preferred_locations") or [])
-            if isinstance(x, dict)
-        ]
-        has_coords = (
-            data.place_lat is not None
-            and data.place_lng is not None
-            and -90 <= data.place_lat <= 90
-            and -180 <= data.place_lng <= 180
-        )
-        if not has_coords and location.lower() not in preferred:
-            raise HTTPException(
-                status_code=400,
-                detail="Please choose a meeting place from the list",
-            )
+    validate_venue(data, service)
+
+    price, platform_fee, total_amount, companion_earning = _calc_fees(
+        round(rate * data.duration_minutes / 60.0)
+    )
 
     booking_id = secrets.token_hex(8)
     person_name = person.get("full_name") or "Companion"
 
-    if idem:
-        try:
-            await db.prepare(
-                "INSERT INTO booking_idempotency (idem_key, user_id, booking_id) VALUES (?, ?, NULL)"
-            ).bind(idem, customer_id).run()
-        except Exception:
-            raise HTTPException(status_code=409, detail="This booking is already being processed")
+    await hold_for_booking(
+        db,
+        user_id=customer_id,
+        amount=float(total_amount),
+        booking_id=booking_id,
+        person_name=person_name,
+    )
 
-    held = False
     try:
-        await hold_for_booking(
-            db,
-            user_id=customer_id,
-            amount=float(total_amount),
-            booking_id=booking_id,
-            person_name=person_name,
-        )
-        held = True
-
         await db.prepare(
             """
             INSERT INTO bookings (
                 id, customer_id, rent_person_id, service_id, service_name,
                 booking_date, start_time, end_time, timezone, duration_minutes,
                 location_type, location, special_requirements, customer_note,
-                price, platform_fee, total_amount, status, payment_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                price, platform_fee, total_amount, status, payment_status,
+                location_lat, location_lng, location_category, idempotency_key
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
         ).bind(
             booking_id,
             customer_id,
             data.rent_person_id,
-            service_id,
-            service_name,
+            service.get("id") or data.service_id,
+            service.get("name") or data.service_name,
             data.booking_date,
-            start_time,
-            end_time,
-            "Asia/Kolkata",
-            int(data.duration_minutes),
+            data.start_time,
+            data.end_time,
+            data.timezone or "Asia/Kolkata",
+            data.duration_minutes,
             data.location_type,
-            location,
+            data.location,
             data.special_requirements,
             data.customer_note,
             price,
@@ -660,33 +483,22 @@ async def create_booking(
             total_amount,
             "pending",
             "held",
+            data.location_lat,
+            data.location_lng,
+            data.location_category,
+            key,
         ).run()
-
-        if idem:
-            await db.prepare(
-                "UPDATE booking_idempotency SET booking_id = ? WHERE idem_key = ? AND user_id = ?"
-            ).bind(booking_id, idem, customer_id).run()
     except Exception:
-        # Undo: release the reservation (so a retry after top-up works) and any hold.
-        if held:
-            try:
-                await refund_hold(
-                    db,
-                    user_id=customer_id,
-                    amount=float(total_amount),
-                    booking_id=booking_id,
-                    reason="Booking failed — amount refunded",
-                )
-            except Exception:
-                pass
-        if idem:
-            try:
-                await db.prepare(
-                    "DELETE FROM booking_idempotency WHERE idem_key = ? AND user_id = ? AND booking_id IS NULL"
-                ).bind(idem, customer_id).run()
-            except Exception:
-                pass
-        raise
+        # Insert failed (e.g. same key raced in). Give the money back.
+        await refund_hold(db, user_id=customer_id, amount=float(total_amount),
+                          booking_id=booking_id, reason="Booking failed - amount refunded")
+        if key:
+            prev = await db.prepare(
+                "SELECT * FROM bookings WHERE customer_id = ? AND idempotency_key = ?"
+            ).bind(customer_id, key).first()
+            if prev:
+                return _create_response(dict(prev), replay=True)
+        raise HTTPException(status_code=500, detail="Could not create booking")
 
     customer_name = current_user.get("full_name") or "Someone"
     try:
@@ -694,24 +506,21 @@ async def create_booking(
             db,
             user_id=data.rent_person_id,
             title="New booking request",
-            body=f"{customer_name} requested a booking for {data.booking_date}. Reply within {RESPONSE_HOURS} hours.",
+            body=f"{customer_name} requested a booking for {data.booking_date}.",
             type="booking",
             data={"booking_id": booking_id},
         )
     except Exception:
         pass
 
-    return _create_response(
-        booking_id,
-        booking_date=data.booking_date,
-        start_time=start_time,
-        end_time=end_time,
-        price=price,
-        platform_fee=platform_fee,
-        total_amount=total_amount,
-        companion_earning=companion_earning,
-        rent_person_id=data.rent_person_id,
-    )
+    row = {
+        "id": booking_id, "booking_date": data.booking_date,
+        "start_time": data.start_time, "end_time": data.end_time,
+        "price": price, "platform_fee": platform_fee, "total_amount": total_amount,
+        "rent_person_id": data.rent_person_id,
+        "status": "pending", "payment_status": "held",
+    }
+    return _create_response(row)
 
 
 @router.get("/bookings")
@@ -721,11 +530,6 @@ async def my_bookings(
 ):
     db = request.scope["env"].DB
     user_id = current_user["id"]
-    await ensure_tables(db)
-    try:
-        await expire_stale_bookings(db, user_id)
-    except Exception:
-        pass
 
     outgoing = await db.prepare(
         """
@@ -755,10 +559,17 @@ async def my_bookings(
         items = rows.results if hasattr(rows, "results") else rows
         return [dict(r) for r in items]
 
+    out_rows, in_rows = to_list(outgoing), to_list(incoming)
+    for row in out_rows + in_rows:
+        try:
+            await _expire_if_stale(db, row)
+        except Exception:
+            pass
+
     bookings = []
-    for row in to_list(outgoing):
+    for row in out_rows:
         bookings.append(_format_booking(row, user_id))
-    for row in to_list(incoming):
+    for row in in_rows:
         bookings.append(_format_booking(row, user_id))
 
     bookings.sort(
@@ -768,7 +579,6 @@ async def my_bookings(
 
     return {"bookings": bookings, "count": len(bookings)}
 
-
 @router.get("/bookings/{booking_id}")
 async def get_booking(
     booking_id: str,
@@ -777,11 +587,6 @@ async def get_booking(
 ):
     db = request.scope["env"].DB
     user_id = current_user["id"]
-    await ensure_tables(db)
-    try:
-        await expire_stale_bookings(db, user_id)
-    except Exception:
-        pass
 
     row = await db.prepare(
         """
@@ -804,7 +609,6 @@ async def get_booking(
 
     return _format_booking(booking, user_id)
 
-
 @router.post("/bookings/{booking_id}/approve")
 async def approve_booking(
     booking_id: str,
@@ -814,11 +618,6 @@ async def approve_booking(
     """Approve only — amount already held. No debit."""
     db = request.scope["env"].DB
     user_id = current_user["id"]
-    await ensure_tables(db)
-    try:
-        await expire_stale_bookings(db, user_id)
-    except Exception:
-        pass
 
     row = await db.prepare(
         "SELECT * FROM bookings WHERE id = ?"
@@ -835,43 +634,17 @@ async def approve_booking(
             detail="Only the companion can approve this booking",
         )
 
+    if await _expire_if_stale(db, booking):
+        raise HTTPException(status_code=400, detail="This request expired and was refunded")
+
     if booking.get("status") != "pending":
-        if "expired" in str(booking.get("cancellation_message") or "").lower():
-            raise HTTPException(status_code=400, detail="This request has expired")
         raise HTTPException(
             status_code=400,
             detail=f"Cannot approve booking with status: {booking.get('status')}",
         )
 
-    if not await is_kyc_verified(db, user_id):
-        raise HTTPException(
-            status_code=403,
-            detail="Complete your ID verification before accepting bookings",
-        )
-    if await is_suspended(db, user_id):
-        raise HTTPException(
-            status_code=403,
-            detail="Your account is under review. Please contact support.",
-        )
-
-    # Too late to accept once the meetup time has passed: cancel and refund.
-    try:
-        started = _start_dt(booking["booking_date"], booking["start_time"]) <= datetime.now(IST)
-    except Exception:
-        started = False
-    if started:
-        await db.prepare(
-            "UPDATE bookings SET status = 'cancelled', payment_status = 'refunded', "
-            "cancellation_message = ? WHERE id = ? AND status = 'pending'"
-        ).bind("Expired: meetup time passed", booking_id).run()
-        await refund_hold(
-            db,
-            user_id=booking["customer_id"],
-            amount=float(booking.get("total_amount") or 0),
-            booking_id=booking_id,
-            reason="Meetup time passed — amount refunded",
-        )
-        raise HTTPException(status_code=400, detail="The meetup time has already passed")
+    if REQUIRE_COMPANION_KYC and not await _companion_kyc_verified(db, user_id):
+        raise HTTPException(status_code=403, detail="Complete ID verification to accept bookings")
 
     otp = _generate_otp()
     await db.prepare(
@@ -910,7 +683,6 @@ async def approve_booking(
         "companion_earning": max(price - platform_fee, 0),
         "message": "Booking approved. Payment remains held. OTP generated.",
     }
-
 
 @router.post("/bookings/{booking_id}/verify-otp")
 async def verify_booking_otp(
@@ -956,28 +728,21 @@ async def verify_booking_otp(
             detail="Booking must be approved before OTP verification",
         )
 
-    await ensure_tables(db)
-    att_row = await db.prepare(
-        "SELECT attempts FROM otp_attempts WHERE booking_id = ?"
-    ).bind(booking_id).first()
-    attempts = int(dict(att_row).get("attempts") or 0) if att_row else 0
+    attempts = int(booking.get("otp_attempts") or 0)
     if attempts >= MAX_OTP_ATTEMPTS:
         raise HTTPException(
             status_code=429,
-            detail="Too many wrong codes. Please contact support to complete this booking.",
+            detail="Too many wrong OTP attempts. Please contact support or cancel the booking.",
         )
 
-    if not booking.get("otp") or not secrets.compare_digest(
-        str(data.otp).strip(), str(booking["otp"])
-    ):
+    if not booking.get("otp") or str(data.otp).strip() != str(booking["otp"]):
         await db.prepare(
-            "INSERT INTO otp_attempts (booking_id, attempts) VALUES (?, 1) "
-            "ON CONFLICT(booking_id) DO UPDATE SET attempts = attempts + 1"
+            "UPDATE bookings SET otp_attempts = COALESCE(otp_attempts, 0) + 1 WHERE id = ?"
         ).bind(booking_id).run()
-        left = max(MAX_OTP_ATTEMPTS - (attempts + 1), 0)
+        left = MAX_OTP_ATTEMPTS - attempts - 1
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid OTP. {left} tries left." if left else "Invalid OTP. No tries left.",
+            detail=f"Invalid OTP. {left} tries left." if left > 0 else "Invalid OTP. No tries left.",
         )
 
     price = float(booking.get("price") or 0)
@@ -1037,7 +802,6 @@ async def verify_booking_otp(
         "companion_earning": provider_earning,
         "message": "OTP verified. Booking completed. Payment released to companion.",
     }
-
 
 @router.post("/bookings/{booking_id}/reject")
 async def reject_booking(
@@ -1109,7 +873,6 @@ async def reject_booking(
         "rejection_message": msg,
         "message": "Booking rejected. Held amount refunded to customer.",
     }
-
 
 @router.post("/bookings/{booking_id}/cancel")
 async def cancel_booking(

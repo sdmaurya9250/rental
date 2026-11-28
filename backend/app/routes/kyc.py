@@ -14,12 +14,16 @@ R2_PUBLIC_URL = "https://pub-da3163e6bec745449d684b720f3a6b4c.r2.dev"
 ALLOWED_DOC_TYPES = {"aadhaar", "pan", "passport", "driving_license"}
 
 
+# ─────────────────────────────────────────────
+# Models
+# ─────────────────────────────────────────────
 class KycSubmitRequest(BaseModel):
     doc_type: Optional[str] = None
     doc_number: Optional[str] = None
     name_on_document: Optional[str] = None
     date_of_birth: Optional[str] = None  # YYYY-MM-DD
 
+    # Images — front + selfie only (no back)
     document_url: Optional[str] = None
     document_front_url: Optional[str] = None
     selfie_url: Optional[str] = None
@@ -34,6 +38,7 @@ class KycSubmitRequest(BaseModel):
     extracted_doc_number: Optional[str] = None
     extracted_dob: Optional[str] = None
 
+    # Flutter camelCase
     docType: Optional[str] = None
     docNumber: Optional[str] = None
     nameOnDocument: Optional[str] = None
@@ -57,6 +62,9 @@ class KycVerifyRequest(BaseModel):
     admin_note: Optional[str] = None
 
 
+# ─────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────
 def _norm(s: Optional[str]) -> str:
     if not s:
         return ""
@@ -195,11 +203,14 @@ async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
     if not body:
         raise HTTPException(status_code=400, detail="No file received")
 
+    # --- Preferred: raw image ---
     if content_type.startswith("image/") or "octet-stream" in content_type:
         ct = content_type if content_type.startswith("image/") else "image/jpeg"
         return body, ct
 
+    # --- Multipart without python-multipart ---
     if "multipart/form-data" in content_type:
+        # boundary=....
         boundary = None
         for part in content_type.split(";"):
             part = part.strip()
@@ -215,6 +226,7 @@ async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
         for chunk in chunks:
             if not chunk or chunk in (b"--", b"--\r\n", b"\r\n"):
                 continue
+            # strip leading CRLF
             if chunk.startswith(b"\r\n"):
                 chunk = chunk[2:]
             if chunk.endswith(b"\r\n"):
@@ -222,9 +234,11 @@ async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
             if chunk == b"--":
                 continue
 
+            # header / body split
             if b"\r\n\r\n" not in chunk:
                 continue
             header_blob, file_body = chunk.split(b"\r\n\r\n", 1)
+            # trailing boundary markers
             if file_body.endswith(b"\r\n"):
                 file_body = file_body[:-2]
             if file_body.endswith(b"--"):
@@ -233,6 +247,7 @@ async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
                 file_body = file_body[:-2]
 
             headers = header_blob.decode("utf-8", errors="ignore").lower()
+            # accept file | photo | image | document | any filename=
             if "filename=" not in headers and "name=\"file\"" not in headers:
                 if not any(
                     n in headers
@@ -243,6 +258,7 @@ async def _read_image_bytes(request: Request) -> tuple[bytes, str]:
                         'name="document"',
                     )
                 ):
+                    # still allow if it looks like a file part with filename
                     if "filename=" not in headers:
                         continue
 
@@ -318,6 +334,9 @@ def _row_to_status(r: dict) -> dict:
     }
 
 
+# ─────────────────────────────────────────────
+# Upload — document (front) | selfie only
+# ─────────────────────────────────────────────
 @router.post("/kyc/upload")
 async def kyc_upload(
     request: Request,
@@ -381,6 +400,9 @@ async def kyc_upload(
     }
 
 
+# ─────────────────────────────────────────────
+# Status
+# ─────────────────────────────────────────────
 @router.get("/kyc/status")
 async def kyc_status(
     request: Request,
@@ -401,6 +423,9 @@ async def kyc_status(
     return _row_to_status(dict(row))
 
 
+# ─────────────────────────────────────────────
+# Submit
+# ─────────────────────────────────────────────
 @router.post("/kyc", status_code=status.HTTP_201_CREATED)
 async def submit_kyc(
     data: KycSubmitRequest,
@@ -556,6 +581,9 @@ async def submit_kyc(
     }
 
 
+# ─────────────────────────────────────────────
+# Admin
+# ─────────────────────────────────────────────
 @router.get("/admin/kyc")
 async def admin_list_kyc(
     request: Request,

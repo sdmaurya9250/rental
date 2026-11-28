@@ -1,3 +1,67 @@
+# from fastapi import FastAPI
+# from fastapi.middleware.cors import CORSMiddleware
+# from workers import asgi, WorkerEntrypoint
+#
+# from routes.auth import router as auth_router
+# from routes.health import router as health_router
+# from routes.profile import router as profile_router
+# from routes.upload import router as upload_router   # ← add this
+# from routes.people import router as people_router
+# from routes.bookings import router as bookings_router
+# from routes.favorites import router as favorites_router
+# from routes.messages import router as messages_router
+# from routes.geo import router as geo_router
+# from routes.wallet import router as wallet_router
+# from routes.ratings import router as ratings_router
+# from routes.kyc import router as kyc_router
+# from routes.payout import router as payout_router
+# from routes.payment_methods import router as payment_methods_router
+# from routes.notifications import router as notifications_router
+# from routes.companion_services import router as companion_services_router
+# from routes.options import router as options_router
+# from routes.booking_stats import router as booking_stats_router
+# from routes.response_rate import router as response_rate_router
+# from routes.payments import router as payments_router
+# from routes.otp_auth import router as otp_auth_router
+# from routes.whatsapp_webhook import router as whatsapp_webhook_router
+#
+# app = FastAPI(title="RentPeople API", version="1.0.0")
+#
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+#
+# app.include_router(health_router)
+# app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+# app.include_router(profile_router, prefix="/api", tags=["Profile"])
+# app.include_router(upload_router, prefix="/api", tags=["Upload"])   # ← add this
+# app.include_router(people_router, prefix="/api", tags=["People"])
+# app.include_router(bookings_router, prefix="/api", tags=["Bookings"])
+# app.include_router(favorites_router, prefix="/api", tags=["Favorites"])
+# app.include_router(messages_router, prefix="/api", tags=["Messages"])
+# app.include_router(geo_router, prefix="/api", tags=["Geo"])
+# app.include_router(wallet_router, prefix="/api", tags=["Wallet"])
+# app.include_router(ratings_router, prefix="/api", tags=["Ratings"])
+# app.include_router(kyc_router, prefix="/api", tags=["KYC"])
+# app.include_router(payout_router, prefix="/api", tags=["Payout"])
+# app.include_router(payment_methods_router, prefix="/api", tags=["PaymentMethods"])
+# app.include_router(notifications_router, prefix="/api", tags=["Notifications"])
+# app.include_router(companion_services_router, prefix="/api", tags=["CompanionServices"])
+# app.include_router(options_router, prefix="/api", tags=["Options"])
+# app.include_router(booking_stats_router, prefix="/api", tags=["BookingStats"])
+# app.include_router(response_rate_router, prefix="/api", tags=["ResponseRate"])
+# app.include_router(response_rate_router, prefix="/api", tags=["ResponseRate"])
+# app.include_router(payments_router, prefix="/api", tags=["Payments"])
+# app.include_router(otp_auth_router, prefix="/api", tags=["Auth"])
+# app.include_router(whatsapp_webhook_router, prefix="/api", tags=["WhatsApp"])
+#
+# class Default(WorkerEntrypoint):
+#     async def fetch(self, request):
+#         return await asgi.fetch(app, request, self.env)
 
 
 from fastapi import FastAPI
@@ -26,8 +90,6 @@ from routes.response_rate import router as response_rate_router
 from routes.payments import router as payments_router
 from routes.otp_auth import router as otp_auth_router
 from routes.whatsapp_webhook import router as whatsapp_webhook_router
-from routes.safety import router as safety_router, ensure_tables
-from utils.security import set_secret
 
 app = FastAPI(title="RentPeople API", version="1.0.0")
 
@@ -39,27 +101,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-
-@app.middleware("http")
-async def _prepare_request(request, call_next):
-    """Use JWT_SECRET from the environment and make sure safety tables exist."""
-    env = request.scope.get("env")
-    if env is not None:
-        secret = getattr(env, "JWT_SECRET", None)
-        if secret:
-            set_secret(str(secret))
-        try:
-            await ensure_tables(env.DB)
-        except Exception:
-            pass
-    return await call_next(request)
-
-
 app.include_router(health_router)
 
+# Mobile + password login: /api/auth/login (sign-up and reset use OTP)
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 
+# WhatsApp OTP: routes must be /auth/otp/send + /auth/otp/verify
+# with prefix=/api → /api/auth/otp/send (matches Flutter ApiConfig)
 app.include_router(otp_auth_router, prefix="/api", tags=["Auth OTP"])
 
 app.include_router(profile_router, prefix="/api", tags=["Profile"])
@@ -81,7 +129,6 @@ app.include_router(booking_stats_router, prefix="/api", tags=["BookingStats"])
 app.include_router(response_rate_router, prefix="/api", tags=["ResponseRate"])
 app.include_router(payments_router, prefix="/api", tags=["Payments"])
 app.include_router(whatsapp_webhook_router, prefix="/api", tags=["WhatsApp"])
-app.include_router(safety_router, prefix="/api", tags=["Safety"])
 
 
 class Default(WorkerEntrypoint):

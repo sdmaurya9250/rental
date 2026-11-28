@@ -1,55 +1,21 @@
 import hashlib
-import os
 import hmac
 import json
 import base64
 import time
 from fastapi import HTTPException, status
 
-# Fallback only. In production set the JWT_SECRET environment variable
-# (wrangler secret put JWT_SECRET); main.py copies it in on every request.
+# Change this later (use environment variable in production)
 SECRET_KEY = "rentpeople-super-secret-key-change-this-in-production"
-
-_PBKDF2_ITERATIONS = 60_000
-
-
-def set_secret(value: str) -> None:
-    global SECRET_KEY
-    if value and value.strip():
-        SECRET_KEY = value.strip()
 ACCESS_TOKEN_EXPIRE_SECONDS = 60 * 60 * 24 * 7  # 7 days
 
 
-def _legacy_hash(password: str) -> str:
+def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 
-def hash_password(password: str) -> str:
-    """Salted PBKDF2. Format: pbkdf2$iterations$salt$hash"""
-    salt = os.urandom(16).hex()
-    dk = hashlib.pbkdf2_hmac(
-        "sha256", password.encode(), bytes.fromhex(salt), _PBKDF2_ITERATIONS
-    ).hex()
-    return f"pbkdf2${_PBKDF2_ITERATIONS}${salt}${dk}"
-
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    stored = hashed_password or ""
-    if stored.startswith("pbkdf2$"):
-        try:
-            _, iters, salt, expected = stored.split("$")
-            dk = hashlib.pbkdf2_hmac(
-                "sha256", plain_password.encode(), bytes.fromhex(salt), int(iters)
-            ).hex()
-            return hmac.compare_digest(dk, expected)
-        except Exception:
-            return False
-    # Old accounts: plain SHA-256. They are upgraded on next successful login.
-    return hmac.compare_digest(_legacy_hash(plain_password), stored)
-
-
-def needs_rehash(hashed_password: str) -> bool:
-    return not (hashed_password or "").startswith("pbkdf2$")
+    return hash_password(plain_password) == hashed_password
 
 
 def _b64_encode(data: bytes) -> str:
