@@ -11,7 +11,6 @@ router = APIRouter()
 class PaymentMethodCreate(BaseModel):
     type: Literal["upi", "card"]
     upi_id: Optional[str] = None
-    # Card: client sends last4 + brand only (or full number we mask)
     card_number: Optional[str] = None
     card_last4: Optional[str] = None
     card_brand: Optional[str] = None

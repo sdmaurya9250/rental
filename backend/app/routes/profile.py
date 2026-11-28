@@ -131,6 +131,7 @@ def _normalize_service(item, index: int = 0) -> dict:
         "id": sid,
         "name": name,
         "title": name,
+        "category": str(d.get("category") or "").strip()[:40],
         "price": price,
         "duration": duration,
         "locations": locations,
@@ -383,7 +384,6 @@ async def update_profile(
         updates.append("lng = ?")
         values.append(data.lng)
 
-    # Services: prefer RAW body so interests / available_time are not stripped by Pydantic
     if "services" in body and isinstance(body.get("services"), list):
         services = [_normalize_service(s, i) for i, s in enumerate(body["services"])]
         updates.append("services = ?")

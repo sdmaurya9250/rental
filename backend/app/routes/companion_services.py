@@ -15,25 +15,15 @@ class PreferredLocation(BaseModel):
     lng: Optional[float] = None
 
 
-# class CompanionServiceItem(BaseModel):
-#     id: Optional[str] = None
-#     name: str = Field(..., min_length=1, max_length=100)
-#     price: int = Field(..., ge=0)
-#     duration: Optional[str] = "1 hr"
-#     title: Optional[str] = None
-#     # Place fields (app sends these)
-#     locations: Optional[List[str]] = None
-#     preferred_locations: Optional[List[PreferredLocation]] = None
-
 class CompanionServiceItem(BaseModel):
     id: Optional[str] = None
+    category: Optional[str] = None
     name: str = Field(..., min_length=1, max_length=100)
     price: int = Field(..., ge=0)
     duration: Optional[str] = "1 hr"
     title: Optional[str] = None
     locations: Optional[List[str]] = None
     preferred_locations: Optional[List[PreferredLocation]] = None
-    # per-service
     interests: Optional[List[str]] = None
     available_time: Optional[Any] = None
     availableTime: Optional[Any] = None
@@ -106,42 +96,11 @@ def _norm_location_names(raw: Any, preferred: list) -> list:
                 names.append(x.strip()[:200])
             elif isinstance(x, dict) and (x.get("name") or "").strip():
                 names.append(str(x["name"]).strip()[:200])
-    # Ensure names from preferred_locations are included
     for p in preferred:
         n = (p.get("name") or "").strip()
         if n and n not in names:
             names.append(n)
     return names
-
-
-# def _normalize_item(item: dict | CompanionServiceItem, index: int = 0) -> dict:
-#     if hasattr(item, "model_dump"):
-#         d = item.model_dump()
-#     else:
-#         d = dict(item)
-#
-#     name = (d.get("name") or d.get("title") or f"Service {index + 1}").strip()
-#     sid = (d.get("id") or "").strip() or f"svc_{secrets.token_hex(4)}"
-#     price = int(d.get("price") or 0)
-#     duration = (d.get("duration") or "1 hr").strip() or "1 hr"
-#
-#     preferred = _norm_preferred_locations(
-#         d.get("preferred_locations") or d.get("preferredLocations")
-#     )
-#     locations = _norm_location_names(
-#         d.get("locations") or d.get("location_names"),
-#         preferred,
-#     )
-#
-#     return {
-#         "id": sid,
-#         "name": name,
-#         "title": name,
-#         "price": price,
-#         "duration": duration,
-#         "locations": locations,
-#         "preferred_locations": preferred,
-#     }
 
 
 def _normalize_item(item: dict | CompanionServiceItem, index: int = 0) -> dict:
@@ -193,6 +152,7 @@ def _normalize_item(item: dict | CompanionServiceItem, index: int = 0) -> dict:
         "id": sid,
         "name": name,
         "title": name,
+        "category": str(d.get("category") or "").strip()[:40],
         "price": price,
         "duration": duration,
         "locations": locations,
