@@ -37,7 +37,6 @@ async def _count_completed(db, user_id: str, as_role: str = "both") -> dict:
         "completed_as_companion": as_companion,
         "completed_as_finder": as_finder,
         "completed_total": as_companion + as_finder,
-        # aliases for app
         "completed_count": as_companion,  # main number on companion profile
         "booking_completed_count": as_companion,
     }

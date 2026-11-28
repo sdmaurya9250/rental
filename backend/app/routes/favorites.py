@@ -93,14 +93,12 @@ async def add_favorite(
     if favorite_user_id == user_id:
         raise HTTPException(status_code=400, detail="You cannot favorite yourself")
 
-    # Check person exists
     person = await db.prepare(
         "SELECT id FROM users WHERE id = ?"
     ).bind(favorite_user_id).first()
     if not person:
         raise HTTPException(status_code=404, detail="Person not found")
 
-    # Already favorited?
     existing = await db.prepare(
         "SELECT id FROM favorites WHERE user_id = ? AND favorite_user_id = ?"
     ).bind(user_id, favorite_user_id).first()
@@ -133,7 +131,6 @@ async def remove_favorite(
         "DELETE FROM favorites WHERE user_id = ? AND favorite_user_id = ?"
     ).bind(user_id, favorite_user_id).run()
 
-    # D1 run() may not return changes count the same way — still OK
     return {
         "message": "Removed from favorites",
         "favorite_user_id": favorite_user_id,

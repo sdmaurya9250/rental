@@ -46,11 +46,9 @@ async def get_service_options(request: Request):
             "SELECT * FROM app_options WHERE id = ?"
         ).bind("service_options").first()
     except Exception:
-        # Table missing → defaults only
         return {**DEFAULT_OPTIONS, "source": "default"}
 
     if not row:
-        # Auto-seed
         try:
             await db.prepare(
                 """
