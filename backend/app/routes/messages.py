@@ -25,6 +25,7 @@ async def list_conversations(
     db = request.scope["env"].DB
     user_id = current_user["id"]
 
+    # Get distinct other users from messages involving me
     rows = await db.prepare(
         """
         SELECT
@@ -54,6 +55,7 @@ async def list_conversations(
 
         u = dict(user_row)
 
+        # Last message
         last = await db.prepare(
             """
             SELECT content, sender_id, created_at
@@ -67,6 +69,7 @@ async def list_conversations(
 
         last_msg = dict(last) if last else {}
 
+        # Unread count (messages sent to me that are unread)
         unread = await db.prepare(
             """
             SELECT COUNT(*) AS cnt FROM messages
@@ -134,6 +137,7 @@ async def get_messages(
             "created_at": r.get("created_at"),
         })
 
+    # Mark messages from the other user as read
     await db.prepare(
         """
         UPDATE messages SET is_read = 1
@@ -148,6 +152,45 @@ async def get_messages(
     }
 
 
+# @router.post("/messages", status_code=status.HTTP_201_CREATED)
+# async def send_message(data: MessageCreate,request: Request,current_user: dict = Depends(get_current_user),):
+#     """Send a message to another user."""
+#     db = request.scope["env"].DB
+#     sender_id = current_user["id"]
+#     content = data.content.strip()
+#
+#     if not content:
+#         raise HTTPException(status_code=400, detail="Message cannot be empty")
+#
+#     if data.receiver_id == sender_id:
+#         raise HTTPException(status_code=400, detail="Cannot message yourself")
+#
+#     receiver = await db.prepare(
+#         "SELECT id FROM users WHERE id = ?"
+#     ).bind(data.receiver_id).first()
+#
+#     if not receiver:
+#         raise HTTPException(status_code=404, detail="Receiver not found")
+#
+#     msg_id = secrets.token_hex(8)
+#
+#     await db.prepare(
+#         """
+#         INSERT INTO messages (id, sender_id, receiver_id, content, is_read)
+#         VALUES (?, ?, ?, ?, 0)
+#         """
+#     ).bind(msg_id, sender_id, data.receiver_id, content).run()
+#
+#     return {
+#         "id": msg_id,
+#         "content": content,
+#         "from_me": True,
+#         "sender_id": sender_id,
+#         "receiver_id": data.receiver_id,
+#         "is_read": False,
+#         "message": "Message sent",
+#     }
+
 @router.post("/messages", status_code=status.HTTP_201_CREATED)
 async def send_message(
     data: MessageCreate,
@@ -157,6 +200,7 @@ async def send_message(
     db = request.scope["env"].DB
     sender_id = current_user["id"]
 
+    # Flutter + web field aliases
     receiver_id = (data.receiver_id or data.to_user_id or "").strip()
     content = (data.content or data.text or data.message or "").strip()
 
@@ -168,21 +212,6 @@ async def send_message(
 
     if receiver_id == sender_id:
         raise HTTPException(status_code=400, detail="Cannot message yourself")
-
-    from routes.safety import (
-        check_message, ensure_tables, is_blocked_between, is_suspended,
-    )
-    await ensure_tables(db)
-    if await is_suspended(db, sender_id):
-        raise HTTPException(
-            status_code=403,
-            detail="Your account is under review. Please contact support.",
-        )
-    if await is_blocked_between(db, sender_id, receiver_id):
-        raise HTTPException(status_code=403, detail="You can't message this user")
-    blocked_reason = check_message(content)
-    if blocked_reason:
-        raise HTTPException(status_code=400, detail=blocked_reason)
 
     receiver = await db.prepare(
         "SELECT id FROM users WHERE id = ?"

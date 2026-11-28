@@ -11,24 +11,8 @@ class PreferredLocation(BaseModel):
     lng: Optional[float] = None
 
 
-class RegisterRequest(BaseModel):
-    name: Optional[str] = None
-    fullName: Optional[str] = None
-    country: str
-    city: str
-    pincode: str = Field(..., min_length=6, max_length=6)
-    gender: Literal["Male", "Female", "Other"]
-    want_to: Literal["finder", "companion"]
-    mobile: str = Field(..., min_length=10, max_length=10)
-    email: str
-    password: str = Field(..., min_length=6)
-    lat: Optional[float] = None
-    lng: Optional[float] = None
-
-
 class LoginRequest(BaseModel):
-    """Login with email+password OR mobile+password."""
-    email: Optional[str] = None
+    """Login with mobile + password."""
     mobile: Optional[str] = None
     password: str = Field(..., min_length=6)
 
@@ -43,23 +27,6 @@ class FeedRequest(BaseModel):
     expand: Optional[bool] = True
 
 
-class UserResponse(BaseModel):
-    id: str
-    account_id: Optional[str] = None
-    email: str
-    mobile: str
-    country: str
-    city: str
-    gender: str
-    want_to: str
-    role: Optional[str] = None
-    name: Optional[str] = None
-    fullName: Optional[str] = None
-    message: str
-    lat: Optional[float] = None
-    lng: Optional[float] = None
-
-
 class TokenResponse(BaseModel):
     access_token: str
     token: Optional[str] = None
@@ -69,7 +36,6 @@ class TokenResponse(BaseModel):
 
 class ServiceItem(BaseModel):
     id: Optional[str] = None
-    category: Optional[str] = None
     name: str
     price: int = 0
     title: Optional[str] = None
@@ -117,16 +83,16 @@ class BookingCreate(BaseModel):
     rent_person_id: str
     special_requirements: Optional[str] = None
     customer_note: Optional[str] = None
-    # Ignored by the server: price, fee and total are always recalculated
-    # from the companion's saved service price. Kept optional so old app
-    # versions that still send them keep working.
+    # Money fields from the client are ignored; the server recalculates them
+    # from the companion's saved service price.
     price: Optional[int] = None
     platform_fee: Optional[int] = None
     total_amount: Optional[int] = None
-    place_lat: Optional[float] = None
-    place_lng: Optional[float] = None
-    place_category: Optional[str] = None
-    idempotency_key: Optional[str] = Field(None, max_length=120)
+    location_lat: Optional[float] = None
+    location_lng: Optional[float] = None
+    location_category: Optional[str] = None
+    # One key per booking attempt. Same key again returns the same booking.
+    idempotency_key: Optional[str] = Field(None, min_length=8, max_length=64)
 
 
 class BookingReject(BaseModel):
@@ -139,16 +105,6 @@ class MessageCreate(BaseModel):
     content: Optional[str] = Field(None, min_length=1, max_length=2000)
     text: Optional[str] = None
     message: Optional[str] = None
-
-
-class ForgotPasswordRequest(BaseModel):
-    email: str
-
-
-class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str = Field(..., min_length=6)
-    email: Optional[str] = None
 
 
 class VerifyOtpRequest(BaseModel):
@@ -201,7 +157,6 @@ class PayoutMethodCreate(BaseModel):
 
 class CompanionServiceItem(BaseModel):
     id: Optional[str] = None
-    category: Optional[str] = None
     name: str = Field(..., min_length=1, max_length=100)
     price: int = Field(..., ge=0)
     duration: Optional[str] = "1 hr"

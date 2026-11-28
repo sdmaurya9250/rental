@@ -1,6 +1,5 @@
 
 
-
 from fastapi import APIRouter, Request, Depends, HTTPException, status
 from routes.profile import get_current_user
 from pydantic import BaseModel, Field
@@ -10,16 +9,13 @@ import secrets
 
 router = APIRouter()
 
-
 class WalletTopUpRequest(BaseModel):
     amount: float = Field(..., ge=100)
     method: Optional[str] = "UPI"
 
-
 class WalletWithdrawRequest(BaseModel):
     amount: float = Field(..., ge=100)
     note: Optional[str] = None
-
 
 def _format_date(iso_str: str | None) -> str:
     if not iso_str:
@@ -29,7 +25,6 @@ def _format_date(iso_str: str | None) -> str:
         return dt.strftime("%d %b %Y, %I:%M %p")
     except Exception:
         return str(iso_str)
-
 
 def _tx_row(row: dict) -> dict:
     amount = float(row.get("amount") or 0)
@@ -44,7 +39,6 @@ def _tx_row(row: dict) -> dict:
         "category": category,
         "booking_id": row.get("booking_id"),
     }
-
 
 @router.get("/wallet")
 async def get_wallet(
@@ -119,76 +113,18 @@ async def get_wallet(
         },
     }
 
-
-@router.post("/wallet/top-up", status_code=status.HTTP_201_CREATED)
+@router.post("/wallet/top-up", status_code=status.HTTP_410_GONE)
 async def wallet_top_up(
     data: WalletTopUpRequest,
     request: Request,
     current_user: dict = Depends(get_current_user),
 ):
-    """
-    DISABLED by default: this endpoint credits money without any payment.
-    Real top-ups go through /payments/create-order and the verified webhook.
-    Set the env var ALLOW_SIMULATED_TOPUP=1 only in a local test environment.
-    """
-    env = request.scope["env"]
-    if str(getattr(env, "ALLOW_SIMULATED_TOPUP", "") or "").strip() != "1":
-        raise HTTPException(
-            status_code=403,
-            detail="Direct top-up is disabled. Please add money using the payment option.",
-        )
-    db = env.DB
-    user_id = current_user["id"]
-    amount = float(data.amount)
-
-    if amount < 100:
-        raise HTTPException(status_code=400, detail="Minimum top-up is ₹100")
-
-    method = (data.method or "UPI").strip() or "UPI"
-    tx_id = secrets.token_hex(8)
-
-    await db.prepare(
-        """
-        UPDATE users
-        SET wallet_balance = COALESCE(wallet_balance, 0) + ?,
-            total_added = COALESCE(total_added, 0) + ?
-        WHERE id = ?
-        """
-    ).bind(amount, amount, user_id).run()
-
-    await db.prepare(
-        """
-        INSERT INTO wallet_transactions (id, user_id, type, subtitle, amount, category)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """
-    ).bind(
-        tx_id,
-        user_id,
-        "Wallet Top Up",
-        f"Added via {method}",
-        amount,
-        "Added",
-    ).run()
-
-    user = await db.prepare(
-        "SELECT wallet_balance, wallet_held, total_added, total_spent FROM users WHERE id = ?"
-    ).bind(user_id).first()
-    u = dict(user) if user else {}
-
-    available = float(u.get("wallet_balance") or 0)
-    held = float(u.get("wallet_held") or 0)
-
-    return {
-        "message": "Money added successfully",
-        "transaction_id": tx_id,
-        "amount": amount,
-        "wallet_balance": available,
-        "available_balance": available,
-        "wallet_held": held,
-        "held_balance": held,
-        "total_added": float(u.get("total_added") or 0),
-        "total_spent": float(u.get("total_spent") or 0),
-    }
+    """Disabled. It used to credit the wallet with no payment. Money is added
+    only through the payment gateway flow (/api/payments/...)."""
+    raise HTTPException(
+        status_code=410,
+        detail="Direct top-up is disabled. Add money through the payment flow.",
+    )
 
 
 @router.post("/wallet/withdraw")
@@ -207,19 +143,6 @@ async def wallet_withdraw(
 
     if amount < 100:
         raise HTTPException(status_code=400, detail="Minimum withdraw is ₹100")
-
-    from routes.safety import ensure_tables, is_kyc_verified, is_suspended
-    await ensure_tables(db)
-    if not await is_kyc_verified(db, user_id):
-        raise HTTPException(
-            status_code=403,
-            detail="Complete your ID verification before withdrawing",
-        )
-    if await is_suspended(db, user_id):
-        raise HTTPException(
-            status_code=403,
-            detail="Your account is under review. Withdrawals are paused.",
-        )
 
     user = await db.prepare(
         "SELECT wallet_balance, wallet_held, want_to FROM users WHERE id = ?"
@@ -285,7 +208,6 @@ async def wallet_withdraw(
         "held_balance": new_held,
         "status": "completed",
     }
-
 
 @router.get("/wallet/transactions")
 async def wallet_transactions(

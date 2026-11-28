@@ -40,6 +40,7 @@ def _format_method(row: dict) -> dict:
         "bank_name": row.get("bank_name") or None,
         "is_default": bool(row.get("is_default", 0)),
         "created_at": row.get("created_at"),
+        # display label for UI
         "label": (
             row.get("upi_id")
             if t == "upi"
@@ -116,11 +117,13 @@ async def add_payout_method(
     method_id = secrets.token_hex(8)
     is_default = 1 if data.is_default else 0
 
+    # If default, clear other defaults
     if is_default:
         await db.prepare(
             "UPDATE payout_methods SET is_default = 0 WHERE user_id = ?"
         ).bind(user_id).run()
 
+    # If first method, force default
     existing = await db.prepare(
         "SELECT COUNT(*) AS cnt FROM payout_methods WHERE user_id = ?"
     ).bind(user_id).first()
@@ -204,6 +207,7 @@ async def delete_payout_method(
         "DELETE FROM payout_methods WHERE id = ? AND user_id = ?"
     ).bind(method_id, user_id).run()
 
+    # If deleted was default, set another as default
     if int(dict(row).get("is_default") or 0) == 1:
         nxt = await db.prepare(
             """
